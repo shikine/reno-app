@@ -117,6 +117,7 @@ export interface Task extends Base {
   plannedEnd?: string
   percent: number        // 0..100
   status: TaskStatus
+  dependsOnTaskId?: ID   // 前工程（解体→造作→内装 の順序）
   note?: string
   sortNo: number
 }
@@ -173,6 +174,16 @@ export interface EstimateItem extends Base {
   sourceTakeoffId?: ID
   // 発注用: ロス率（0.1=10%）。発注数量 = ceil(quantity×(1+lossRate))。金額計算には使わない
   lossRate?: number
+}
+
+// ---- 添付写真（IndexedDBにBlob保存。JSONバックアップ対象外） ----
+export interface Attachment extends Base {
+  projectId: ID
+  targetType: 'room' | 'task' | 'project'
+  targetId: ID
+  kind: 'photo'
+  blob: Blob
+  caption?: string
 }
 
 // ---- 入金/支払スケジュール ----

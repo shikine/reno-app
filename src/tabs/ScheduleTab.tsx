@@ -1,3 +1,4 @@
+import { useRef, type PointerEvent as RPE } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { PROJECT_ID } from '../db/planRepo'
@@ -6,8 +7,20 @@ import { addTask, createTasksFromMajors, deleteTask, updateTask } from '../db/ta
 import { subtreeSum, yen } from '../estimate/estimateTotals'
 import { computeOverall, isDelayed, localToday } from '../schedule/progress'
 import { TextField } from '../ui/fields'
+import { PhotoStrip } from '../ui/PhotoStrip'
+import type { Task } from '../types/model'
 
 const DAY = 24 * 60 * 60 * 1000
+
+interface DragState {
+  taskId: string
+  mode: 'move' | 'resize'
+  startX: number
+  pxPerDay: number
+  s: number
+  e: number
+  last: number
+}
 
 export default function ScheduleTab() {
   const tasks = (useLiveQuery(
@@ -36,7 +49,45 @@ export default function ScheduleTab() {
   max += 2 * DAY
   const span = Math.max(max - min, DAY)
   const pos = (t: number) => ((t - min) / span) * 100
-  const fmtDate = (iso: string) => iso.slice(5).replace('-', '/')
+  const isoOf = (t: number) => new Date(t).toISOString().slice(0, 10)
+  const shortDate = (t: number) => isoOf(t).slice(5).replace('-', '/')
+
+  // 週目盛り（月曜ごと）
+  const weekMarks: { t: number; label: string }[] = []
+  {
+    const dow = new Date(min).getUTCDay()
+    const first = min + (((8 - dow) % 7) * DAY)
+    for (let t = first; t <= max; t += 7 * DAY) weekMarks.push({ t, label: shortDate(t) })
+  }
+
+  // ガントバーのドラッグ（本体=移動 / 右端16px=終了日の伸縮）
+  const drag = useRef<DragState | null>(null)
+  const onBarDown = (ev: RPE<HTMLDivElement>, t: Task) => {
+    if (!t.plannedStart || !t.plannedEnd) return
+    const bar = ev.currentTarget
+    const track = bar.parentElement as HTMLElement
+    const w = track.getBoundingClientRect().width
+    const resize = ev.clientX > bar.getBoundingClientRect().right - 16
+    bar.setPointerCapture(ev.pointerId)
+    drag.current = {
+      taskId: t.id, mode: resize ? 'resize' : 'move',
+      startX: ev.clientX, pxPerDay: w / (span / DAY),
+      s: Date.parse(t.plannedStart), e: Date.parse(t.plannedEnd), last: 0,
+    }
+  }
+  const onBarMove = (ev: RPE<HTMLDivElement>) => {
+    const d = drag.current
+    if (!d) return
+    const delta = Math.round((ev.clientX - d.startX) / d.pxPerDay)
+    if (delta === d.last) return
+    d.last = delta
+    if (d.mode === 'move') {
+      updateTask(d.taskId, { plannedStart: isoOf(d.s + delta * DAY), plannedEnd: isoOf(d.e + delta * DAY) })
+    } else {
+      updateTask(d.taskId, { plannedEnd: isoOf(Math.max(d.s, d.e + delta * DAY)) })
+    }
+  }
+  const onBarUp = () => { drag.current = null }
 
   const budgetOf = (majorId?: string) =>
     majorId ? subtreeSum(items, majorId) : undefined
@@ -63,11 +114,19 @@ export default function ScheduleTab() {
       {dated.length > 0 && (
         <div className="gantt">
           <div className="g-scale">
-            <span>{fmtDate(new Date(min).toISOString().slice(0, 10))}</span>
-            <span>{fmtDate(new Date(max).toISOString().slice(0, 10))}</span>
+            <div className="g-scale-in">
+              {weekMarks.map((m) => (
+                <span key={m.t} style={{ left: `${pos(m.t)}%` }}>{m.label}</span>
+              ))}
+            </div>
           </div>
           <div className="g-rows">
-            <div className="g-today" style={{ left: `${pos(todayT)}%` }} title={`今日 ${today}`} />
+            <div className="g-overlay">
+              {weekMarks.map((m) => (
+                <div className="g-week" key={m.t} style={{ left: `${pos(m.t)}%` }} />
+              ))}
+              <div className="g-today" style={{ left: `${pos(todayT)}%` }} title={`今日 ${today}`} />
+            </div>
             {dated.map((t) => {
               const s = Date.parse(t.plannedStart!)
               const e = Date.parse(t.plannedEnd!) + DAY // 終了日を含める
@@ -77,15 +136,21 @@ export default function ScheduleTab() {
                   <span className="g-name">{t.name}</span>
                   <div className="g-track">
                     <div className={`g-bar ${t.status === 'done' ? 'done' : late ? 'late' : ''}`}
-                      style={{ left: `${pos(s)}%`, width: `${Math.max(pos(e) - pos(s), 1)}%` }}>
+                      style={{ left: `${pos(s)}%`, width: `${Math.max(pos(e) - pos(s), 1)}%` }}
+                      onPointerDown={(ev) => onBarDown(ev, t)}
+                      onPointerMove={onBarMove}
+                      onPointerUp={onBarUp}
+                      onPointerCancel={onBarUp}
+                      title={`${t.name} ${t.plannedStart}〜${t.plannedEnd}（ドラッグ=移動 / 右端=伸縮）`}>
                       <div className="g-fill" style={{ width: `${t.percent}%` }} />
+                      <span className="g-handle" />
                     </div>
                   </div>
                 </div>
               )
             })}
           </div>
-          <p className="muted small g-legend">バーの濃い部分＝進捗%。赤＝予定終了超過（遅延）。縦線＝今日。</p>
+          <p className="muted small g-legend">バー＝ドラッグで日程移動、右端をつまむと工期伸縮。濃い部分＝進捗%。赤＝遅延。オレンジ縦線＝今日、細線＝週(月曜)。</p>
         </div>
       )}
 
@@ -96,6 +161,8 @@ export default function ScheduleTab() {
         {tasks.map((t) => {
           const late = isDelayed(t, today)
           const budget = budgetOf(t.linkedMajorId)
+          const dep = t.dependsOnTaskId ? tasks.find((x) => x.id === t.dependsOnTaskId) : undefined
+          const depConflict = !!(dep?.plannedEnd && t.plannedStart && t.plannedStart < dep.plannedEnd)
           return (
             <div className={`task-card ${late ? 'late' : ''} ${t.status === 'done' ? 'done' : ''}`} key={t.id}>
               <div className="t-row1">
@@ -128,8 +195,25 @@ export default function ScheduleTab() {
                     予算 {yen(budget.cost)}・消化 {yen(budget.cost * t.percent / 100)}
                   </span>
                 )}
+                <select className="dep" value={t.dependsOnTaskId ?? ''}
+                  title="前工程（この工程より前に終わるべきタスク）"
+                  onChange={(e) => updateTask(t.id, { dependsOnTaskId: e.target.value || undefined })}>
+                  <option value="">前工程なし</option>
+                  {tasks.filter((x) => x.id !== t.id).map((x) => (
+                    <option key={x.id} value={x.id}>← {x.name}</option>
+                  ))}
+                </select>
+                {depConflict && (
+                  <span className="late-badge"
+                    title={`前工程「${dep!.name}」の終了予定(${dep!.plannedEnd})より前に開始予定になっています`}>
+                    ⚠順序
+                  </span>
+                )}
                 <TextField className="t-note" placeholder="メモ（現場の状況など）" value={t.note ?? ''}
                   onCommit={(v) => updateTask(t.id, { note: v })} />
+              </div>
+              <div className="t-row3">
+                <PhotoStrip targetType="task" targetId={t.id} compact />
               </div>
             </div>
           )

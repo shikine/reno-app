@@ -7,6 +7,7 @@ import { dist, pointAtLength, polygonAreaM2, roundMm } from '../drawing/geometry
 import { ensurePlan, exportPlanJSON, roomsFromGeometry, savePlan } from '../db/planRepo'
 import { db, newId } from '../db/db'
 import { pickEditable, sendToEstimate } from '../db/estimateRepo'
+import { PhotoStrip } from '../ui/PhotoStrip'
 
 const PITCHES = [910, 455, 303, 100]
 
@@ -46,6 +47,9 @@ export default function DrawingTab({ onGoEstimate }: Props) {
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle')
   const [loaded, setLoaded] = useState(false)
   const roomSeq = useRef(1)
+
+  // 写真パネルの対象部屋（部屋一覧の行タップで切替）
+  const [photoRoomId, setPhotoRoomId] = useState<string | null>(null)
 
   // 見積へ送るダイアログ
   const [sendRoom, setSendRoom] = useState<EditableRoom | null>(null)
@@ -226,7 +230,8 @@ export default function DrawingTab({ onGoEstimate }: Props) {
           {rooms.length === 0 && <p className="muted">まだ部屋がありません。壁を描いて閉じると面積が出ます。</p>}
           <ul className="room-list">
             {rooms.map((r) => (
-              <li key={r.id} className={selected?.roomId === r.id ? 'sel' : ''}>
+              <li key={r.id} className={(selected?.roomId === r.id || photoRoomId === r.id) ? 'sel' : ''}
+                onClick={() => setPhotoRoomId(r.id)}>
                 <input value={r.name} onChange={(e) => renameRoom(r.id, e.target.value)} />
                 <span className="area">{polygonAreaM2(r.vertices).toFixed(2)} ㎡</span>
                 <button className="send" onClick={() => openSend(r)} title="見積に送る">📤</button>
@@ -255,6 +260,13 @@ export default function DrawingTab({ onGoEstimate }: Props) {
                   </div>
                 )
               })()}
+            </div>
+          )}
+
+          {photoRoomId && rooms.some((r) => r.id === photoRoomId) && (
+            <div className="room-photos">
+              <h4>📷 {rooms.find((r) => r.id === photoRoomId)!.name} の写真</h4>
+              <PhotoStrip targetType="room" targetId={photoRoomId} />
             </div>
           )}
 
