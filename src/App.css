@@ -224,6 +224,37 @@
 
 .est input:disabled { background: #f4f6f8; color: #5a6a7a; border-color: transparent; }
 
+/* 入金/支払 */
+.pay-summary {
+  display: flex; gap: 18px; flex-wrap: wrap;
+  background: #fff; border: 1px solid #d5dde5; border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 12px;
+}
+.pay-summary .row { display: flex; align-items: baseline; gap: 6px; font-size: 13px; color: #47566a; }
+.pay-summary .row b { font-size: 15px; color: #1f2d3d; }
+.pay-summary .row.good b { color: #2a7d54; }
+.pay-summary .row.bad b { color: #a32d2d; }
+.pay-summary .row.total b { font-size: 17px; color: #2563eb; }
+.pay-section { background: #fff; border: 1px solid #d5dde5; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.pay-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.pay-section-head h3 { margin: 0; font-size: 14px; flex: 1; }
+.pay-section-head button { min-height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #c7d0da; border-radius: 8px; background: #fff; }
+.pay-section-head button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pay-head, .pay-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.4fr) minmax(80px, 1fr) 128px 110px 34px 128px 110px 28px;
+  gap: 4px; align-items: center;
+}
+.pay-head { font-size: 11px; color: #7b8896; padding: 4px 0 2px; border-bottom: 1px solid #e3e9ef; }
+.pay-row { padding: 3px 0; }
+.pay-row input:not([type='checkbox']) {
+  min-height: 38px; border: 1px solid #e3e9ef; border-radius: 6px; padding: 0 6px;
+  width: 100%; min-width: 0; font-size: 13px; background: #fff;
+}
+.pay-row input[type='checkbox'] { width: 22px; height: 22px; justify-self: center; }
+.pay-row.paid input:not([type='checkbox']) { background: #f2f9f5; }
+.pay-row .del { border: none; background: none; font-size: 15px; }
+
 .est-body { flex: 1; overflow: auto; padding: 12px 14px; }
 .est-body .empty { padding: 24px; text-align: center; }
 
@@ -254,9 +285,12 @@
 
 .item-head, .item-row {
   display: grid;
-  grid-template-columns: minmax(120px, 2fr) 64px 52px 84px 60px 84px 90px 90px 28px;
+  grid-template-columns: minmax(120px, 2fr) 64px 52px 88px 84px 60px 84px 90px 90px 28px;
   gap: 4px; align-items: center;
 }
+.loss-cell { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.loss-cell input { width: 44px; flex: none; }
+.loss-cell .oq { font-size: 11px; color: #b4570f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-head {
   font-size: 11px; color: #7b8896; padding: 4px 0 2px;
   border-bottom: 1px solid #e3e9ef;
@@ -430,17 +464,22 @@
 /* ===== 印刷（見積書） ===== */
 @media print {
   .app { background: #fff; }
-  .app-header, .tabs, .no-print, .item-head span:nth-child(4), .item-head span:nth-child(5),
+  .app-header, .tabs, .no-print,
   .item-row .del, .major-head button, .section-head button,
-  .qty-cell .diff, .toast, .modal-overlay { display: none !important; }
+  .qty-cell .diff, .toast, .modal-overlay,
+  .contract-bar, .locked-note, .pay-summary, .pay-section, .costs-toolbar,
+  .cost-head, .cost-row, .cost-total { display: none !important; }
   .est-body { overflow: visible; padding: 0; }
   .major { border: none; border-radius: 0; margin-bottom: 8px; break-inside: avoid; }
   .item-row input { border: none; }
+  /* 印刷では ロス%(4)・原価単価(5)・粗利率(6)・粗利(9) を隠す */
   .item-head, .item-row {
-    grid-template-columns: minmax(120px, 2fr) 64px 52px 0 0 84px 90px 90px 0;
+    grid-template-columns: minmax(120px, 2fr) 64px 52px 0 0 0 84px 90px 0 0;
   }
-  .item-row input:nth-child(4), .item-row input:nth-child(5), .item-row .profit,
-  .item-head span:nth-child(8) { visibility: hidden; }
+  .item-head span:nth-child(4), .item-head span:nth-child(5), .item-head span:nth-child(6),
+  .item-head span:nth-child(9),
+  .item-row > *:nth-child(4), .item-row > *:nth-child(5), .item-row > *:nth-child(6),
+  .item-row .profit { visibility: hidden; }
   .est-totals { border-top: 1.5px solid #000; }
   .est-totals .row.profit { display: none; }
 }

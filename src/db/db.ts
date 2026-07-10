@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Project, Plan, Room, Wall, Opening, Estimate, EstimateItem, Takeoff, Task, Cost } from '../types/model'
+import type { Project, Plan, Room, Wall, Opening, Estimate, EstimateItem, Takeoff, Task, Cost, Payment } from '../types/model'
 
 // Dexie は FK 制約を持たないため、索引は逆引きする列に付け、整合はアプリ層で担保する。
 export class RenoDB extends Dexie {
@@ -14,6 +14,7 @@ export class RenoDB extends Dexie {
   tasks!: Table<Task, string>
   settings!: Table<{ key: string; value: unknown }, string>
   costs!: Table<Cost, string>
+  payments!: Table<Payment, string>
 
   constructor() {
     super('renovation-app')
@@ -39,6 +40,9 @@ export class RenoDB extends Dexie {
     })
     this.version(6).stores({
       costs: '&id, projectId, estimateItemId, incurredAt',
+    })
+    this.version(7).stores({
+      payments: '&id, projectId, direction, plannedDate',
     })
   }
 }

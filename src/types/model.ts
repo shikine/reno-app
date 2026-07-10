@@ -171,4 +171,23 @@ export interface EstimateItem extends Base {
   unitPrice?: number      // 売単価（円）
   // 連携（次段階）: 作図の拾い由来
   sourceTakeoffId?: ID
+  // 発注用: ロス率（0.1=10%）。発注数量 = ceil(quantity×(1+lossRate))。金額計算には使わない
+  lossRate?: number
+}
+
+// ---- 入金/支払スケジュール ----
+export type PaymentDirection = 'in' | 'out' // in=施主からの入金 / out=業者への支払
+export type PaymentStatus = 'planned' | 'paid'
+
+export interface Payment extends Base {
+  projectId: ID
+  direction: PaymentDirection
+  title: string          // 着手金/中間金/完了金/○○支払 等
+  vendorName?: string    // 支払先（out用）
+  plannedDate?: string   // ISODate
+  plannedAmount: number  // 円
+  status: PaymentStatus
+  paidDate?: string
+  paidAmount?: number
+  note?: string
 }

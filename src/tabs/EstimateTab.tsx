@@ -7,17 +7,22 @@ import {
   updateEstimate, updateNode,
 } from '../db/estimateRepo'
 import { addCost, deleteCost, updateCost } from '../db/costRepo'
+import { addPayment, createStandardInPlan, deletePayment, markPaid, updatePayment } from '../db/paymentRepo'
 import { computeTotals, itemCost, itemSell, pct, subtreeSum, yen } from '../estimate/estimateTotals'
-import type { Cost, CostKind, Estimate, EstimateItem } from '../types/model'
+import type { Cost, CostKind, Estimate, EstimateItem, Payment } from '../types/model'
 import { NumberField, TextField } from '../ui/fields'
 
 const COST_KINDS: [CostKind, string][] = [
   ['material', '材料'], ['labor', '手間'], ['subcontract', '外注'], ['expense', '諸経費'],
 ]
 
+// 発注数量 = 数量×(1+ロス率) を切上げ（金額計算には使わない・発注時の目安）
+const orderQty = (it: EstimateItem): number | null =>
+  it.lossRate && it.lossRate > 0 ? Math.ceil((it.quantity ?? 0) * (1 + it.lossRate)) : null
+
 export default function EstimateTab() {
   const [newMargin, setNewMargin] = useState(DEFAULT_MARGIN)
-  const [view, setView] = useState<'items' | 'costs'>('items')
+  const [view, setView] = useState<'items' | 'costs' | 'payments'>('items')
   const [selId, setSelId] = useState<string | null>(null)
 
   useEffect(() => { ensureEstimate() }, [])
@@ -29,6 +34,8 @@ export default function EstimateTab() {
     .sort((a, b) => b.incurredAt.localeCompare(a.incurredAt))
   const takeoffs = useLiveQuery(() => db.takeoffs.toArray(), []) ?? []
   const tkById = new Map(takeoffs.map((t) => [t.id, t]))
+  const payments = (useLiveQuery(() => db.payments.toArray(), []) ?? [])
+    .sort((a, b) => (a.plannedDate ?? '9999').localeCompare(b.plannedDate ?? '9999'))
 
   const contract = estimates.find((e) => e.type === 'contract')
   const selected: Estimate | undefined =
@@ -117,6 +124,7 @@ export default function EstimateTab() {
           <div className="subtabs">
             <button className={view === 'items' ? 'on' : ''} onClick={() => setView('items')}>明細</button>
             <button className={view === 'costs' ? 'on' : ''} onClick={() => setView('costs')}>実績原価 ({costs.length})</button>
+            <button className={view === 'payments' ? 'on' : ''} onClick={() => setView('payments')}>入金/支払 ({payments.length})</button>
           </div>
           {view === 'items' && !locked && (
             <>
@@ -203,6 +211,7 @@ export default function EstimateTab() {
 
                         <div className="item-head">
                           <span>名称</span><span>数量</span><span>単位</span>
+                          <span>ロス%→発注</span>
                           <span>原価単価</span><span>粗利率</span><span>売単価</span>
                           <span>金額</span><span>粗利</span><span></span>
                         </div>
@@ -230,6 +239,13 @@ export default function EstimateTab() {
                             </div>
                             <TextField value={it.unit ?? ''} disabled={locked}
                               onCommit={(v) => editItemField(it, 'unit', v)} />
+                            <div className="loss-cell" title="発注数量＝数量×(1+ロス率)を切上げ。見積金額には影響しません">
+                              <NumberField value={Math.round((it.lossRate ?? 0) * 100)} step={1} disabled={locked}
+                                onCommit={(v) => updateNode(it.id, { lossRate: Math.max(0, v) / 100 })} />
+                              <span className="oq">
+                                {orderQty(it) !== null ? `→${orderQty(it)}${it.unit ?? ''}` : ''}
+                              </span>
+                            </div>
                             <NumberField value={num(it.costUnitPrice)} step={100} disabled={locked}
                               onCommit={(v) => editItemField(it, 'costUnitPrice', v)} />
                             <NumberField value={Math.round(num(it.marginRate) * 1000) / 10} step={1} disabled={locked}
@@ -262,6 +278,10 @@ export default function EstimateTab() {
 
       {view === 'costs' && (
         <CostsView costs={costs} scopeItems={scopeItems} costTotal={costTotal} />
+      )}
+
+      {view === 'payments' && (
+        <PaymentsView payments={payments} scopeTotal={scopeTotal} />
       )}
     </div>
   )
@@ -329,6 +349,80 @@ function CostsView({ costs, scopeItems, costTotal }: {
       {costs.length > 0 && (
         <div className="cost-total">実績原価合計 <b>{yen(costTotal)}</b></div>
       )}
+    </div>
+  )
+}
+
+// ---- 入金/支払スケジュール ----
+function PaymentsView({ payments, scopeTotal }: {
+  payments: Payment[]
+  scopeTotal: number
+}) {
+  const ins = payments.filter((p) => p.direction === 'in')
+  const outs = payments.filter((p) => p.direction === 'out')
+  const sum = (rows: Payment[], f: (p: Payment) => number) => rows.reduce((s, p) => s + f(p), 0)
+  const plannedIn = sum(ins, (p) => p.plannedAmount)
+  const paidIn = sum(ins.filter((p) => p.status === 'paid'), (p) => p.paidAmount ?? p.plannedAmount)
+  const paidOut = sum(outs.filter((p) => p.status === 'paid'), (p) => p.paidAmount ?? p.plannedAmount)
+  const plannedOut = sum(outs, (p) => p.plannedAmount)
+
+  const section = (title: string, rows: Payment[], direction: 'in' | 'out') => (
+    <div className="pay-section">
+      <div className="pay-section-head">
+        <h3>{title}</h3>
+        {direction === 'in' && rows.length === 0 && scopeTotal > 0 && (
+          <button onClick={() => createStandardInPlan(scopeTotal)}>⚡ 標準3回払いを作成（30/40/残）</button>
+        )}
+        <button className="primary" onClick={() => addPayment(direction)}>＋ 追加</button>
+      </div>
+      {rows.length > 0 && (
+        <div className="pay-head">
+          <span>名目</span><span>{direction === 'out' ? '支払先' : ''}</span>
+          <span>予定日</span><span>予定額</span><span>済</span><span>実績日</span><span>実績額</span><span></span>
+        </div>
+      )}
+      {rows.map((p) => (
+        <div className={`pay-row ${p.status === 'paid' ? 'paid' : ''}`} key={p.id}>
+          <TextField value={p.title} onCommit={(v) => updatePayment(p.id, { title: v })} />
+          {direction === 'out'
+            ? <TextField placeholder="支払先" value={p.vendorName ?? ''}
+                onCommit={(v) => updatePayment(p.id, { vendorName: v })} />
+            : <span />}
+          <input type="date" value={p.plannedDate ?? ''}
+            onChange={(e) => updatePayment(p.id, { plannedDate: e.target.value || undefined })} />
+          <NumberField value={p.plannedAmount} step={10000}
+            onCommit={(v) => updatePayment(p.id, { plannedAmount: v })} />
+          <input type="checkbox" checked={p.status === 'paid'}
+            onChange={(e) => markPaid(p, e.target.checked)} />
+          {p.status === 'paid' ? (
+            <input type="date" value={p.paidDate ?? ''}
+              onChange={(e) => updatePayment(p.id, { paidDate: e.target.value || undefined })} />
+          ) : <span />}
+          {p.status === 'paid' ? (
+            <NumberField value={p.paidAmount ?? p.plannedAmount} step={10000}
+              onCommit={(v) => updatePayment(p.id, { paidAmount: v })} />
+          ) : <span />}
+          <button className="del" onClick={() => deletePayment(p.id)}>🗑</button>
+        </div>
+      ))}
+    </div>
+  )
+
+  return (
+    <div className="est-body">
+      <div className="pay-summary">
+        <div className="row"><span>入金 予定</span><b>{yen(plannedIn)}</b></div>
+        <div className="row good"><span>入金 済</span><b>{yen(paidIn)}</b></div>
+        <div className="row"><span>未入金</span><b>{yen(plannedIn - paidIn)}</b></div>
+        <div className="row"><span>支払 予定</span><b>{yen(plannedOut)}</b></div>
+        <div className="row bad"><span>支払 済</span><b>{yen(paidOut)}</b></div>
+        <div className="row total"><span>手元収支（済ベース）</span><b>{yen(paidIn - paidOut)}</b></div>
+      </div>
+      {scopeTotal > 0 && plannedIn > 0 && plannedIn !== scopeTotal && (
+        <p className="muted small">⚠ 入金予定合計 {yen(plannedIn)} と請負額 {yen(scopeTotal)} に差があります（{yen(scopeTotal - plannedIn)}）。</p>
+      )}
+      {section('入金（施主から）', ins, 'in')}
+      {section('支払（業者へ）', outs, 'out')}
     </div>
   )
 }
