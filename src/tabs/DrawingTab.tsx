@@ -6,7 +6,7 @@ import type { QuantityType, Takeoff, Vec } from '../types/model'
 import { dist, pointAtLength, polygonAreaM2, roundMm } from '../drawing/geometry'
 import { ensurePlan, exportPlanJSON, roomsFromGeometry, savePlan } from '../db/planRepo'
 import { db, newId } from '../db/db'
-import { ESTIMATE_ID, sendToEstimate } from '../db/estimateRepo'
+import { pickEditable, sendToEstimate } from '../db/estimateRepo'
 
 const PITCHES = [910, 455, 303, 100]
 
@@ -53,10 +53,14 @@ export default function DrawingTab({ onGoEstimate }: Props) {
   const [sendMajor, setSendMajor] = useState('内装工事')
   const [toast, setToast] = useState<string | null>(null)
 
-  const majors = useLiveQuery(
-    () => db.estimateItems.where('estimateId').equals(ESTIMATE_ID).and((i) => i.type === 'major').toArray(),
-    [],
-  ) ?? []
+  // 送り先＝編集可能な版（契約後は追加変更）。その版の大項目を候補に出す
+  const majors = useLiveQuery(async () => {
+    const ests = await db.estimates.toArray()
+    const target = pickEditable(ests)
+    if (!target) return []
+    return db.estimateItems.where('estimateId').equals(target.id)
+      .and((i) => i.type === 'major').toArray()
+  }, []) ?? []
 
   useEffect(() => {
     let alive = true

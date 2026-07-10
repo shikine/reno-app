@@ -121,6 +121,20 @@ export interface Task extends Base {
   sortNo: number
 }
 
+// ---- 実績原価（実費。明細に割付、null=現場共通費） ----
+export type CostKind = 'material' | 'labor' | 'subcontract' | 'expense'
+
+export interface Cost extends Base {
+  projectId: ID
+  estimateItemId?: ID    // 割付先の見積明細（undefined=現場共通費）
+  vendorName?: string    // 支払先（簡易に文字列）
+  kind: CostKind
+  title: string
+  amount: number         // 円
+  incurredAt: string     // ISODate 発生日
+  note?: string
+}
+
 // ---- 見積（版：提案/契約/追加変更） ----
 export type EstimateType = 'quote' | 'contract' | 'change_order'
 export type EstimateStatus = 'draft' | 'proposed' | 'locked' | 'superseded'
@@ -133,6 +147,7 @@ export interface Estimate extends Base {
   revisionNo: number
   status: EstimateStatus
   isCurrent: boolean
+  lockedAt?: ISODateTime  // 凍結日時（locked にした時刻）
   taxRate: number     // 0.10 など
   discount: number    // 値引（円）
 }

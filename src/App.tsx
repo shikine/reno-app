@@ -4,9 +4,9 @@ import DrawingTab from './tabs/DrawingTab'
 import EstimateTab from './tabs/EstimateTab'
 import ScheduleTab from './tabs/ScheduleTab'
 import { db } from './db/db'
-import { ensureEstimate, ESTIMATE_ID } from './db/estimateRepo'
+import { ensureEstimate, pickScope } from './db/estimateRepo'
 import { ensurePlan, PROJECT_ID } from './db/planRepo'
-import { computeTotals, pct, yen } from './estimate/estimateTotals'
+import { computeTotals, yen } from './estimate/estimateTotals'
 import { computeOverall } from './schedule/progress'
 import { exportAll, importAll } from './db/transfer'
 import { backupSupported, chooseBackupDir, getBackupDirName, runBackup } from './db/backup'
@@ -42,15 +42,23 @@ export default function App() {
     }
   }
 
-  const estimate = useLiveQuery(() => db.estimates.get(ESTIMATE_ID), [])
-  const items = useLiveQuery(
-    () => db.estimateItems.where('estimateId').equals(ESTIMATE_ID).toArray(),
-    [],
-  ) ?? []
-  const totals = computeTotals(items, estimate?.taxRate ?? 0.1, estimate?.discount ?? 0)
+  const estimates = useLiveQuery(() => db.estimates.toArray(), []) ?? []
+  const allItems = useLiveQuery(() => db.estimateItems.toArray(), []) ?? []
+  const costs = useLiveQuery(() => db.costs.toArray(), []) ?? []
   const tasks = useLiveQuery(() => db.tasks.where('projectId').equals(PROJECT_ID).toArray(), []) ?? []
-  const overall = computeOverall(tasks, items)
   const project = useLiveQuery(() => db.projects.get(PROJECT_ID), [])
+
+  // KPI＝金額スコープ（契約＋凍結済み追加変更 / 契約前は編集中見積）
+  const scope = pickScope(estimates)
+  const scopeItems = allItems.filter((i) => scope.some((e) => e.id === i.estimateId))
+  const agg = scope.reduce((acc, e) => {
+    const t = computeTotals(allItems.filter((i) => i.estimateId === e.id), e.taxRate, e.discount)
+    return { sell: acc.sell + t.sell, cost: acc.cost + t.cost, total: acc.total + t.total }
+  }, { sell: 0, cost: 0, total: 0 })
+  const actualCost = costs.reduce((s, c) => s + c.amount, 0)
+  const profitLeft = agg.sell - actualCost // 粗利(残)＝税抜売価 − 実績原価
+  const hasContract = estimates.some((e) => e.type === 'contract')
+  const overall = computeOverall(tasks, scopeItems)
 
   const doExportAll = async () => {
     const json = await exportAll()
@@ -99,9 +107,16 @@ export default function App() {
           </span>
         </div>
         <div className="kpi">
-          <div className="chip"><span>見積(請負)</span><b>{yen(totals.total)}</b></div>
-          <div className="chip"><span>予定原価</span><b>{yen(totals.cost)}</b></div>
-          <div className="chip good"><span>粗利 {pct(totals.marginRate)}</span><b>{yen(totals.profit)}</b></div>
+          <div className="chip" title={hasContract ? '契約＋凍結済み追加変更の税込合計' : '編集中見積の税込合計'}>
+            <span>{hasContract ? '請負(契約+追加)' : '見積(税込)'}</span><b>{yen(agg.total)}</b>
+          </div>
+          <div className="chip"><span>予定原価</span><b>{yen(agg.cost)}</b></div>
+          <div className={`chip ${actualCost > agg.cost ? 'warn' : ''}`} title="実費(材料/手間/外注/諸経費)の合計">
+            <span>実績原価</span><b>{yen(actualCost)}</b>
+          </div>
+          <div className="chip good" title="税抜売価 − 実績原価">
+            <span>粗利(残)</span><b>{yen(profitLeft)}</b>
+          </div>
           <div className={`chip ${overall.delayed > 0 ? 'warn' : ''}`}>
             <span>進捗{overall.delayed > 0 ? ` ⚠遅延${overall.delayed}` : ''}</span>
             <b>{overall.percent.toFixed(0)}%</b>

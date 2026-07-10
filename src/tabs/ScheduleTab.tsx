@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { PROJECT_ID } from '../db/planRepo'
-import { ESTIMATE_ID } from '../db/estimateRepo'
+import { pickScope } from '../db/estimateRepo'
 import { addTask, createTasksFromMajors, deleteTask, updateTask } from '../db/taskRepo'
 import { subtreeSum, yen } from '../estimate/estimateTotals'
 import { computeOverall, isDelayed, localToday } from '../schedule/progress'
@@ -14,9 +14,13 @@ export default function ScheduleTab() {
     () => db.tasks.where('projectId').equals(PROJECT_ID).toArray(), [],
   ) ?? []).sort((a, b) => a.sortNo - b.sortNo)
 
-  const items = useLiveQuery(
-    () => db.estimateItems.where('estimateId').equals(ESTIMATE_ID).toArray(), [],
-  ) ?? []
+  // 工種＝金額スコープ（契約＋凍結済み追加変更 / 契約前は編集中見積）の大項目
+  const items = useLiveQuery(async () => {
+    const ests = await db.estimates.toArray()
+    const scopeIds = new Set(pickScope(ests).map((e) => e.id))
+    const all = await db.estimateItems.toArray()
+    return all.filter((i) => scopeIds.has(i.estimateId))
+  }, []) ?? []
 
   const majors = items.filter((i) => i.type === 'major').sort((a, b) => a.sortNo - b.sortNo)
   const overall = computeOverall(tasks, items)

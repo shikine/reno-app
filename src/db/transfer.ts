@@ -4,7 +4,7 @@ import { PLAN_ID, roomsFromGeometry, savePlan } from './planRepo'
 // 案件データ全体のエクスポート/インポート（N-4: バックアップ・端末移行用）
 const TABLES = [
   'projects', 'plans', 'rooms', 'walls', 'openings',
-  'takeoffs', 'estimates', 'estimateItems', 'tasks',
+  'takeoffs', 'estimates', 'estimateItems', 'tasks', 'costs',
 ] as const
 
 export const EXPORT_FORMAT = 'reno-app-export'

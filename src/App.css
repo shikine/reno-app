@@ -172,6 +172,58 @@
 }
 .est-controls button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
 
+/* 版セレクタ・契約 */
+.ver-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+.pill {
+  min-height: 36px; padding: 0 12px; font-size: 13px;
+  border: 1px solid #c7d0da; border-radius: 18px; background: #fff; color: #47566a;
+}
+.pill.on { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+.pill.old { opacity: 0.6; }
+.est-title .ctr {
+  min-height: 36px; padding: 0 12px; font-size: 13px;
+  border: 1px solid #2a7d54; color: #2a7d54; background: #fff; border-radius: 8px;
+}
+.contract-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 14px; font-size: 13px;
+  background: #f2f9f5; border-bottom: 1px solid #cfe6d8; color: #1f2d3d;
+}
+.contract-bar b { color: #2a7d54; }
+.contract-bar .spacer { flex: 1; }
+.locked-note {
+  padding: 6px 14px; font-size: 13px;
+  background: #fff8ec; border-bottom: 1px solid #ecd9b0; color: #7a5b1f;
+}
+.major-head .sub .over { color: #a32d2d; }
+.subtabs { display: flex; gap: 2px; border: 1px solid #c7d0da; border-radius: 8px; overflow: hidden; }
+.subtabs button { min-height: 38px; padding: 0 14px; border: none; background: #fff; font-size: 13px; }
+.subtabs button.on { background: #2563eb; color: #fff; }
+
+/* 実績原価 */
+.costs-toolbar { display: flex; align-items: center; gap: 12px; justify-content: space-between; margin-bottom: 10px; }
+.costs-toolbar p { margin: 0; flex: 1; }
+.costs-toolbar .primary {
+  min-height: 42px; padding: 0 16px; border-radius: 8px;
+  background: #2563eb; border: 1px solid #2563eb; color: #fff; white-space: nowrap;
+}
+.cost-head, .cost-row {
+  display: grid;
+  grid-template-columns: 128px 84px minmax(110px, 1.4fr) minmax(90px, 1fr) minmax(140px, 1.6fr) 110px 28px;
+  gap: 4px; align-items: center;
+}
+.cost-head { font-size: 11px; color: #7b8896; padding: 4px 0 2px; border-bottom: 1px solid #e3e9ef; }
+.cost-row { padding: 3px 0; }
+.cost-row input, .cost-row select {
+  min-height: 38px; border: 1px solid #e3e9ef; border-radius: 6px; padding: 0 6px;
+  width: 100%; min-width: 0; font-size: 13px; background: #fff;
+}
+.cost-row .del { border: none; background: none; font-size: 15px; }
+.cost-total { text-align: right; padding: 10px 4px; font-size: 14px; }
+.cost-total b { font-size: 17px; color: #a32d2d; }
+
+.est input:disabled { background: #f4f6f8; color: #5a6a7a; border-color: transparent; }
+
 .est-body { flex: 1; overflow: auto; padding: 12px 14px; }
 .est-body .empty { padding: 24px; text-align: center; }
 
