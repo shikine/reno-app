@@ -5,7 +5,8 @@ import type { Task } from '../types/model'
 export async function addTask(name: string, patch: Partial<Task> = {}): Promise<string> {
   const now = nowISO()
   const all = await db.tasks.where('projectId').equals(PROJECT_ID).toArray()
-  const sortNo = all.length ? Math.max(...all.map((t) => t.sortNo)) + 1 : 0
+  const sibs = all.filter((t) => (t.parentTaskId ?? null) === (patch.parentTaskId ?? null))
+  const sortNo = sibs.length ? Math.max(...sibs.map((t) => t.sortNo)) + 1 : 0
   const id = newId()
   await db.tasks.put({
     id, projectId: PROJECT_ID, name,
@@ -26,8 +27,41 @@ export async function updateTask(id: string, patch: Partial<Task>): Promise<void
   await db.tasks.update(id, { ...p, updatedAt: nowISO() })
 }
 
+// 子孫ごと削除（親を消したら配下も消える）
 export async function deleteTask(id: string): Promise<void> {
-  await db.tasks.delete(id)
+  const all = await db.tasks.toArray()
+  const toDel: string[] = []
+  const walk = (tid: string) => {
+    toDel.push(tid)
+    for (const c of all.filter((t) => t.parentTaskId === tid)) walk(c.id)
+  }
+  walk(id)
+  await db.tasks.bulkDelete(toDel)
+}
+
+// 同じ親の中で dragId を targetId の前/後に並べ替える
+export async function moveTask(dragId: string, targetId: string, after: boolean): Promise<void> {
+  if (dragId === targetId) return
+  const all = await db.tasks.toArray()
+  const drag = all.find((t) => t.id === dragId)
+  const target = all.find((t) => t.id === targetId)
+  if (!drag || !target) return
+  if ((drag.parentTaskId ?? null) !== (target.parentTaskId ?? null)) return
+
+  const sibs = all
+    .filter((t) => (t.parentTaskId ?? null) === (drag.parentTaskId ?? null) && t.id !== dragId)
+    .sort((a, b) => a.sortNo - b.sortNo)
+  let idx = sibs.findIndex((t) => t.id === targetId)
+  if (idx < 0) return
+  if (after) idx += 1
+  sibs.splice(idx, 0, drag)
+
+  const now = nowISO()
+  await db.transaction('rw', db.tasks, async () => {
+    for (let i = 0; i < sibs.length; i++) {
+      if (sibs[i].sortNo !== i) await db.tasks.update(sibs[i].id, { sortNo: i, updatedAt: now })
+    }
+  })
 }
 
 // 見積の大項目(工種)から未作成分のタスクを一括生成

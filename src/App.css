@@ -479,6 +479,38 @@
 .t-row2 .dep { min-height: 34px; max-width: 150px; font-size: 12px; border: 1px solid #e3e9ef; border-radius: 6px; }
 .t-row3 { padding-top: 2px; }
 
+/* 階層・並べ替え */
+.grab {
+  cursor: grab; font-size: 16px; color: #9aa7b4; padding: 4px 2px;
+  user-select: none; touch-action: none;
+}
+.grab:active { cursor: grabbing; }
+.depth-chip {
+  flex: none; font-size: 11px; padding: 2px 7px; border-radius: 10px; white-space: nowrap;
+}
+.depth-chip.d0 { background: #e3ecf8; color: #1d4f93; border: 1px solid #b5cdf0; }
+.depth-chip.d1 { background: #eef3f7; color: #47566a; border: 1px solid #d5dde5; }
+.depth-chip.d2 { background: #f6f8fa; color: #7b8896; border: 1px solid #e3e9ef; }
+.task-card.dragging { opacity: 0.45; }
+.task-card.drop-before { box-shadow: 0 -3px 0 0 #2563eb; }
+.task-card.drop-after { box-shadow: 0 3px 0 0 #2563eb; }
+.roll-dates { font-size: 13px; color: #47566a; white-space: nowrap; }
+.roll-bar {
+  flex: 1 1 140px; min-width: 120px; height: 12px;
+  background: #e3e9ef; border-radius: 6px; overflow: hidden;
+}
+.roll-fill { height: 100%; background: #5b7fb0; }
+.t-row1 .addchild {
+  min-height: 34px; padding: 0 10px; font-size: 12px; white-space: nowrap;
+  border: 1px dashed #c7d0da; border-radius: 6px; background: #fff; color: #47566a;
+}
+.g-parent-name { font-weight: 600; color: #1f2d3d; }
+.g-bar.parent {
+  height: 8px; top: 5px; background: #8fa8c8; border-color: #5b7fb0;
+  cursor: default;
+}
+.g-bar.parent .g-fill { background: #1d4f93; }
+
 /* 写真 */
 .photo-strip { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .photo-strip .thumb {

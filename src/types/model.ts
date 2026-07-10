@@ -111,6 +111,7 @@ export type TaskStatus = 'not_started' | 'in_progress' | 'done'
 export interface Task extends Base {
   projectId: ID
   name: string
+  parentTaskId?: ID      // 親工程（大→中→小の3階層。undefined=大工程）
   linkedMajorId?: ID     // 見積の大項目(工種) EstimateItem.id
   vendorName?: string    // 職人/業者（個人ツールなので文字列で簡易に）
   plannedStart?: string  // ISODate

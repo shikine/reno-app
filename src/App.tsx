@@ -58,7 +58,9 @@ export default function App() {
   const actualCost = costs.reduce((s, c) => s + c.amount, 0)
   const profitLeft = agg.sell - actualCost // 粗利(残)＝税抜売価 − 実績原価
   const hasContract = estimates.some((e) => e.type === 'contract')
-  const overall = computeOverall(tasks, scopeItems)
+  // 進捗は末端工程のみで集計（親工程は配下の集計値のため二重計上しない）
+  const leafTasks = tasks.filter((t) => !tasks.some((x) => x.parentTaskId === t.id))
+  const overall = computeOverall(leafTasks, scopeItems)
 
   const doExportAll = async () => {
     const json = await exportAll()
