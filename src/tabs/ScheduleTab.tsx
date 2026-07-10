@@ -87,10 +87,33 @@ export default function ScheduleTab() {
     }
   }
 
+  // ---- ガントの折りたたみ（既定: 大工程のみ。▸で展開） ----
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const parentIds = tasks.filter((t) => hasChildren(t.id)).map((t) => t.id)
+  const expandAll = () => setExpanded(new Set(parentIds))
+  const collapseAll = () => setExpanded(new Set())
+
+  const gVisible: { t: Task; depth: number }[] = []
+  const gwalk = (parentId: string | undefined, depth: number) => {
+    for (const t of childrenOf(parentId)) {
+      gVisible.push({ t, depth })
+      if (depth < MAX_DEPTH && hasChildren(t.id) && expanded.has(t.id)) gwalk(t.id, depth + 1)
+    }
+  }
+  gwalk(undefined, 0)
+
   // ---- ガントの日付レンジ ----
   interface GRow { t: Task; depth: number; s: number; e: number; percent: number; parent: boolean; late: boolean }
   const gRows: GRow[] = []
-  for (const { t, depth } of flat) {
+  for (const { t, depth } of gVisible) {
     const ru = rollupOf(t)
     const start = ru ? ru.start : t.plannedStart
     const end = ru ? ru.end : t.plannedEnd
@@ -193,6 +216,12 @@ export default function ScheduleTab() {
 
       {gRows.length > 0 && (
         <div className="gantt">
+          {parentIds.length > 0 && (
+            <div className="g-tools">
+              <button onClick={expandAll}>▾ すべて展開</button>
+              <button onClick={collapseAll}>▸ すべて畳む</button>
+            </div>
+          )}
           <div className="g-scale">
             <div className="g-scale-in">
               {weekMarks.map((m) => (
@@ -211,6 +240,15 @@ export default function ScheduleTab() {
               <div className="g-row" key={r.t.id}>
                 <span className={`g-name ${r.parent ? 'g-parent-name' : ''}`}
                   style={{ paddingLeft: r.depth * 14 }}>
+                  {r.parent ? (
+                    <button className="g-caret"
+                      title={expanded.has(r.t.id) ? '配下を折りたたむ' : '配下を展開'}
+                      onClick={() => toggleExpand(r.t.id)}>
+                      {expanded.has(r.t.id) ? '▾' : '▸'}
+                    </button>
+                  ) : (
+                    <span className="g-caret-sp" />
+                  )}
                   {r.t.name}
                 </span>
                 <div className="g-track">
