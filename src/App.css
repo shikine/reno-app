@@ -404,8 +404,8 @@
 .sched-actions button:disabled { opacity: 0.4; }
 
 /* 簡易ガント */
-.gantt { background: #fff; border-bottom: 1px solid #d5dde5; padding: 8px 14px 4px; }
-.g-scale { padding-left: 128px; }
+.gantt { --gname: 120px; background: #fff; border-bottom: 1px solid #d5dde5; padding: 8px 14px 4px; }
+.g-scale { padding-left: calc(var(--gname) + 8px); }
 .g-scale-in { position: relative; height: 15px; }
 .g-scale-in span {
   position: absolute; top: 0; transform: translateX(-50%);
@@ -413,7 +413,7 @@
 }
 .g-rows { position: relative; }
 .g-overlay {
-  position: absolute; left: 128px; right: 0; top: 0; bottom: 0;
+  position: absolute; left: calc(var(--gname) + 8px); right: 0; top: 0; bottom: 0;
   pointer-events: none; z-index: 2;
 }
 .g-week { position: absolute; top: 0; bottom: 0; width: 1px; background: #dde5ec; }
@@ -423,7 +423,7 @@
 }
 .g-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
 .g-name {
-  width: 120px; flex: none; font-size: 12px; color: #47566a;
+  width: var(--gname); flex: none; font-size: 12px; color: #47566a;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center; gap: 2px;
 }
@@ -453,7 +453,7 @@
 .g-bar.done .g-fill { background: #2a7d54; }
 .g-bar.late { background: #fbe3e3; border-color: #a32d2d; }
 .g-bar.late .g-fill { background: #d85a30; }
-.g-legend { padding: 4px 0 2px 128px; margin: 0; }
+.g-legend { padding: 4px 0 2px calc(var(--gname) + 8px); margin: 0; }
 
 /* タスクリスト */
 .task-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -571,6 +571,76 @@
   .est-totals .row.profit { display: none; }
 }
 
-@media (max-width: 820px) {
-  .inspector { width: 240px; }
+/* ===== タブレット縦（〜900px）===== */
+@media (max-width: 900px) {
+  .inspector { width: 250px; }
+}
+
+/* ===== スマホ（〜700px）===== */
+@media (max-width: 700px) {
+  /* ヘッダ: KPIチップは横スクロール */
+  .app-header { padding: 6px 8px; gap: 6px; }
+  .app-name { font-size: 14px; }
+  .proj { font-size: 11px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .io { margin-left: 0; }
+  .io button, .io label { font-size: 11px; min-height: 26px; padding: 2px 8px; }
+  .kpi {
+    flex-wrap: nowrap; overflow-x: auto; width: 100%;
+    -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+  }
+  .chip { min-width: 82px; padding: 2px 8px; flex: none; }
+  .chip span { font-size: 10px; }
+  .chip b { font-size: 13px; }
+  .tabs button { padding: 0 12px; font-size: 14px; min-height: 42px; }
+
+  /* 作図: 右パネルをキャンバスの下に積む */
+  .main { flex-direction: column; }
+  .canvas-wrap { flex: none; height: 52vh; }
+  .inspector {
+    width: 100%; flex: 1; min-height: 0;
+    border-left: none; border-top: 1px solid #d5dde5;
+  }
+  .toolbar { padding: 6px 8px; gap: 6px; }
+  .toolbar .group { padding-right: 6px; gap: 4px; }
+  .toolbar button { min-height: 38px; padding: 0 10px; font-size: 13px; }
+  .toolbar label, .toolbar select { font-size: 13px; }
+  .hint { font-size: 11px; padding: 6px 8px; }
+
+  /* 見積・実費・入金: 表は横スクロール（列は潰さない） */
+  .major { min-width: 760px; }
+  .cost-head, .cost-row { min-width: 680px; }
+  .pay-head, .pay-row { min-width: 700px; }
+  .est-toolbar { padding: 6px 8px; gap: 6px; }
+  .est-controls { gap: 6px; }
+  .est-controls label { font-size: 12px; }
+  .est-controls input { width: 58px; }
+  .pill { min-height: 32px; padding: 0 10px; font-size: 12px; }
+  .est-title .ctr { font-size: 12px; padding: 0 10px; }
+  .est-totals { gap: 10px; padding: 8px 10px; }
+  .est-totals .row { font-size: 11px; }
+  .est-totals .row b { font-size: 13px; }
+  .est-totals .row.total b { font-size: 16px; }
+  .contract-bar { font-size: 12px; padding: 5px 8px; }
+  .pay-summary { gap: 10px; padding: 8px 10px; }
+  .pay-summary .row { font-size: 12px; }
+
+  /* 工程 */
+  .gantt { --gname: 86px; padding: 6px 8px 4px; }
+  .g-name { font-size: 11px; }
+  .sched-toolbar { padding: 8px; gap: 6px; }
+  .overall { min-width: 0; width: 100%; }
+  .sched-actions { width: 100%; }
+  .sched-actions button { flex: 1; min-height: 40px; font-size: 13px; padding: 0 8px; }
+  .task-list { padding: 8px; gap: 8px; }
+  .task-card { padding: 6px 8px; }
+  .t-row1 .t-name { flex-basis: 120px; font-size: 14px; }
+  .t-row1 select { max-width: 130px; font-size: 12px; }
+  .t-row1 input[type='date'] { font-size: 12px; padding: 0 2px; }
+  .t-row2 .dep { max-width: 120px; }
+  .t-row2 .budget { font-size: 11px; }
+
+  /* ダイアログ・ビューア */
+  .send-dialog { padding: 12px; }
+  .photo-viewer img { max-height: 60vh; }
+  .pv-bar { flex-wrap: wrap; }
 }
