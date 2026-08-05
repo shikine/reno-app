@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/db'
 import { PROJECT_ID } from '../db/planRepo'
 import { pickScope } from '../db/estimateRepo'
 import { computeTotals, itemSell, yen } from '../estimate/estimateTotals'
 import type { EstimateItem } from '../types/model'
-import { QUESTIONS, SURVEY_TITLE, buildSummary, type Question } from '../survey/questions'
+import { QUESTIONS, SURVEY_TITLE, FIXED_PROJECT, buildSummary, type Question } from '../survey/questions'
 import { cloudReady, liffReady } from '../cloud/config'
 import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
 import {
@@ -17,7 +16,6 @@ import './SurveyTab.css'
 type View = 'record' | 'list' | 'estimate'
 
 export default function SurveyTab() {
-  const project = useLiveQuery(() => db.projects.get(PROJECT_ID), [])
   const [view, setView] = useState<View>(() => initialView() ?? 'record')
   const lineUser = getLineUser()
 
@@ -54,8 +52,8 @@ export default function SurveyTab() {
         </div>
       ) : null}
 
-      {view === 'record' && <RecordForm defaultProject={project?.name ?? ''} defaultCustomer={project?.customerName ?? ''} onDone={() => setView('list')} />}
-      {view === 'list' && <RecordList projectName={project?.name} />}
+      {view === 'record' && <RecordForm onDone={() => setView('list')} />}
+      {view === 'list' && <RecordList projectName={FIXED_PROJECT} />}
       {view === 'estimate' && <EstimateRecall />}
     </div>
   )
@@ -67,32 +65,59 @@ function isEmpty(v: unknown): boolean {
   return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)
 }
 
-function RecordForm({ defaultProject, defaultCustomer, onDone }: {
-  defaultProject: string; defaultCustomer: string; onDone: () => void
-}) {
+function todayISO(): string {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+// 見積の小項目を「工種 / 明細」の選択肢に変換（クラウド保存済み見積から）
+async function loadWorkOptions(): Promise<string[]> {
+  try {
+    const ests = await listEstimates()
+    if (!ests.length) return []
+    const pick = ests.find((e) => e.type === 'contract') ?? ests[0]
+    const snap = await getEstimate(pick.id)
+    const items = snap?.data.items ?? []
+    const opts: string[] = []
+    let major = ''
+    for (const it of items) {
+      if (it.type === 'major') major = it.name
+      else if (it.type === 'item') opts.push(major ? `${major} / ${it.name}` : it.name)
+    }
+    return opts
+  } catch {
+    return []
+  }
+}
+
+function RecordForm({ onDone }: { onDone: () => void }) {
   const lineUser = getLineUser()
-  const [projectName, setProjectName] = useState(defaultProject)
-  const [customerName, setCustomerName] = useState(defaultCustomer)
-  const [respondent, setRespondent] = useState(lineUser?.displayName ?? '')
-  const [answers, setAnswers] = useState<Record<string, unknown>>({})
+  const [respondent] = useState(lineUser?.displayName ?? '')
+  const [answers, setAnswers] = useState<Record<string, unknown>>(() => {
+    const init: Record<string, unknown> = {}
+    for (const q of QUESTIONS) {
+      if (q.type === 'date' && q.default === 'today') init[q.id] = todayISO()
+      else if (q.default) init[q.id] = q.default
+    }
+    return init
+  })
+  const [workOptions, setWorkOptions] = useState<string[]>([])
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [done, setDone] = useState(false)
 
-  useEffect(() => { setProjectName(defaultProject) }, [defaultProject])
-  useEffect(() => { setCustomerName(defaultCustomer) }, [defaultCustomer])
+  useEffect(() => { loadWorkOptions().then(setWorkOptions) }, [])
 
-  const total = QUESTIONS.length + 2 // 0=基本情報, 1..N=各設問, 最後=確認
-  const isProfile = step === 0
+  const total = QUESTIONS.length + 1 // 1..N=各設問, 最後=確認
   const isReview = step === total - 1
-  const q = !isProfile && !isReview ? QUESTIONS[step - 1] : null
+  const q = !isReview ? QUESTIONS[step] : null
 
   const setAnswer = (id: string, v: unknown) => setAnswers((a) => ({ ...a, [id]: v }))
 
   const next = () => {
     setMsg('')
-    if (isProfile && !projectName.trim()) { setMsg('案件名を入力してください'); return }
     if (q && q.required && isEmpty(answers[q.id])) { setMsg(`「${q.label}」は必須です`); return }
     setStep((s) => Math.min(s + 1, total - 1))
   }
@@ -104,7 +129,11 @@ function RecordForm({ defaultProject, defaultCustomer, onDone }: {
     }
     setSaving(true); setMsg('')
     try {
-      await addSurvey({ projectName, customerName, respondent, summary: buildSummary(answers), answers })
+      const workers = Array.isArray(answers.workers) ? (answers.workers as string[]).join('・') : ''
+      await addSurvey({
+        projectName: FIXED_PROJECT, customerName: '', respondent: workers || respondent,
+        summary: buildSummary(answers), answers,
+      })
       setDone(true)
       setTimeout(onDone, 1200)
     } catch (e) {
@@ -127,40 +156,27 @@ function RecordForm({ defaultProject, defaultCustomer, onDone }: {
   return (
     <div className="survey-wizard">
       <div className="wiz-head">
-        <span className="wiz-title">{SURVEY_TITLE}</span>
+        <span className="wiz-title">{SURVEY_TITLE}（{FIXED_PROJECT}）</span>
         <span className="wiz-count">{step + 1} / {total}</span>
       </div>
       <div className="wiz-bar"><div className="wiz-bar-in" style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
 
       <div className="wiz-body">
-        {isProfile && (
-          <div className="wiz-step">
-            <h3 className="wiz-q">案件の基本情報</h3>
-            <label className="q-field"><span className="q-label">案件名<em> *</em></span>
-              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-            <label className="q-field"><span className="q-label">顧客名</span>
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></label>
-            <label className="q-field"><span className="q-label">調査担当</span>
-              <input value={respondent} onChange={(e) => setRespondent(e.target.value)} /></label>
-          </div>
-        )}
         {q && (
           <div className="wiz-step">
             <h3 className="wiz-q">{q.label}{q.required && <em className="req"> *</em>}</h3>
-            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} bare />
+            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} dynamicOptions={workOptions} bare />
           </div>
         )}
         {isReview && (
           <div className="wiz-step">
             <h3 className="wiz-q">内容を確認</h3>
             <div className="wiz-review">
-              <div className="rev-row"><span>案件名</span><b>{projectName || '—'}</b></div>
-              <div className="rev-row"><span>顧客名</span><b>{customerName || '—'}</b></div>
-              <div className="rev-row"><span>調査担当</span><b>{respondent || '—'}</b></div>
+              <div className="rev-row"><span>物件</span><b>{FIXED_PROJECT}</b></div>
               {QUESTIONS.map((qq) => {
                 const v = answers[qq.id]
                 const shown = Array.isArray(v) ? v.join('・') : (isEmpty(v) ? '—' : String(v))
-                return <div key={qq.id} className="rev-row"><span>{qq.label}</span><b>{shown}</b></div>
+                return <div key={qq.id} className="rev-row"><span>{qq.label.replace(/（.*?）/g, '')}</span><b>{shown}</b></div>
               })}
             </div>
           </div>
@@ -179,8 +195,38 @@ function RecordForm({ defaultProject, defaultCustomer, onDone }: {
   )
 }
 
-function QuestionField({ q, value, onChange, bare }: { q: Question; value: unknown; onChange: (v: unknown) => void; bare?: boolean }) {
+function QuestionField({ q, value, onChange, bare, dynamicOptions }: {
+  q: Question; value: unknown; onChange: (v: unknown) => void; bare?: boolean; dynamicOptions?: string[]
+}) {
   const label = bare ? null : <span className="q-label">{q.label}{q.required && <em> *</em>}</span>
+
+  if (q.type === 'time') {
+    return <label className="q-field">{label}
+      <input type="time" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  }
+
+  // 見積の小項目から複数選択（未保存なら自由入力にフォールバック）
+  if (q.type === 'workitems') {
+    const opts = dynamicOptions ?? []
+    if (opts.length === 0) {
+      return <div className="q-field">{label}
+        <div className="q-hint">見積がまだクラウドに保存されていません。「見積を見る」で保存すると選択肢が出ます。まずは自由入力できます。</div>
+        <textarea rows={3} placeholder="やった作業を記入" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
+      </div>
+    }
+    const arr = Array.isArray(value) ? (value as string[]) : []
+    const toggle = (o: string) => onChange(arr.includes(o) ? arr.filter((x) => x !== o) : [...arr, o])
+    return <div className="q-field">{label}
+      <div className="q-checks q-checks-col">
+        {opts.map((o) => (
+          <label key={o} className={`q-chip q-chip-wide ${arr.includes(o) ? 'on' : ''}`}>
+            <input type="checkbox" checked={arr.includes(o)} onChange={() => toggle(o)} />{o}
+          </label>
+        ))}
+      </div>
+    </div>
+  }
 
   if (q.type === 'textarea') {
     return <label className="q-field">{label}
