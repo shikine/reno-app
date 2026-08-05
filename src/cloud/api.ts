@@ -1,9 +1,11 @@
 // Google Apps Script Web App を叩くクラウドDBクライアント。
 //
-// POST は Content-Type: text/plain で送る（application/json だと CORS プリフライトが
-// 発生し、Apps Script が OPTIONS を返せず失敗するため）。GET は素のクエリで叩く。
+// すべて POST（Content-Type: text/plain）で送る。application/json だと CORS プリフライトが
+// 発生し Apps Script が OPTIONS を返せず失敗するため text/plain を使う。
+// 認証は LIFF IDトークン（あれば）＋ 静的トークン（当面のフォールバック）。
 
 import { GAS_URL, GAS_TOKEN, cloudReady } from './config'
+import { getIdToken } from './liff'
 
 export interface SurveyRecord {
   id: string
@@ -47,26 +49,16 @@ function ensureConfigured(): void {
   if (!cloudReady()) throw new Error('クラウド接続先(GAS_URL)が未設定です。設定手順をご確認ください。')
 }
 
-async function post<T>(action: string, payload: unknown): Promise<T> {
+// 全リクエスト共通。action と任意の追加フィールドを本文に載せ、認証情報を付与して POST する。
+async function rpc<T>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
   ensureConfigured()
   const res = await fetch(GAS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, token: GAS_TOKEN, payload }),
+    body: JSON.stringify({ action, token: GAS_TOKEN, idToken: getIdToken(), ...extra }),
   })
   const data = await res.json()
-  if (!data.ok) throw new Error(data.error || '保存に失敗しました')
-  return data as T
-}
-
-async function get<T>(params: Record<string, string>): Promise<T> {
-  ensureConfigured()
-  const url = new URL(GAS_URL)
-  if (GAS_TOKEN) url.searchParams.set('token', GAS_TOKEN)
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
-  const res = await fetch(url.toString())
-  const data = await res.json()
-  if (!data.ok) throw new Error(data.error || '取得に失敗しました')
+  if (!data.ok) throw new Error(data.error || '通信に失敗しました')
   return data as T
 }
 
@@ -81,14 +73,12 @@ export interface SurveyInput {
 }
 
 export async function addSurvey(input: SurveyInput): Promise<string> {
-  const r = await post<{ id: string }>('survey.add', input)
+  const r = await rpc<{ id: string }>('survey.add', { payload: input })
   return r.id
 }
 
 export async function listSurveys(projectName?: string): Promise<SurveyRecord[]> {
-  const params: Record<string, string> = { action: 'survey.list' }
-  if (projectName) params.projectName = projectName
-  const r = await get<{ items: SurveyRecord[] }>(params)
+  const r = await rpc<{ items: SurveyRecord[] }>('survey.list', projectName ? { projectName } : {})
   return r.items
 }
 
@@ -106,18 +96,16 @@ export interface EstimateSaveInput {
 }
 
 export async function saveEstimate(input: EstimateSaveInput): Promise<string> {
-  const r = await post<{ id: string }>('estimate.save', input)
+  const r = await rpc<{ id: string }>('estimate.save', { payload: input })
   return r.id
 }
 
 export async function listEstimates(projectName?: string): Promise<EstimateSummary[]> {
-  const params: Record<string, string> = { action: 'estimate.list' }
-  if (projectName) params.projectName = projectName
-  const r = await get<{ items: EstimateSummary[] }>(params)
+  const r = await rpc<{ items: EstimateSummary[] }>('estimate.list', projectName ? { projectName } : {})
   return r.items
 }
 
 export async function getEstimate(id: string): Promise<EstimateSnapshot | null> {
-  const r = await get<{ item: EstimateSnapshot | null }>({ action: 'estimate.get', id })
+  const r = await rpc<{ item: EstimateSnapshot | null }>('estimate.get', { id })
   return r.item
 }

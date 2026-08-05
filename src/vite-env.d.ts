@@ -15,6 +15,7 @@ declare global {
       login(config?: { redirectUri?: string }): void
       isInClient(): boolean
       getProfile(): Promise<{ userId: string; displayName: string; pictureUrl?: string }>
+      getIDToken(): string | null
     }
   }
 }

@@ -35,6 +35,31 @@ export function getLineUser(): LineUser | null {
   return profile
 }
 
+// クラウド呼び出しに付与する LIFF IDトークン（未ログイン/LINE外では null）
+export function getIdToken(): string | null {
+  try {
+    return window.liff?.getIDToken() ?? null
+  } catch {
+    return null
+  }
+}
+
+// LINEログインを促す（外部ブラウザでも動く）。ログイン済みなら true。
+export function ensureLogin(): boolean {
+  if (!liffReady() || !window.liff) return false
+  if (window.liff.isLoggedIn()) return true
+  window.liff.login()
+  return false
+}
+
+export function isLineLoggedIn(): boolean {
+  try {
+    return Boolean(window.liff?.isLoggedIn())
+  } catch {
+    return false
+  }
+}
+
 // URL の ?view=survey / ?view=estimate を読む（リッチメニューからの遷移先切替に使う）
 export function initialView(): 'record' | 'list' | 'estimate' | null {
   try {

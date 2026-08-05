@@ -6,8 +6,8 @@ import { pickScope } from '../db/estimateRepo'
 import { computeTotals, itemSell, yen } from '../estimate/estimateTotals'
 import type { EstimateItem } from '../types/model'
 import { QUESTIONS, SURVEY_TITLE, buildSummary, type Question } from '../survey/questions'
-import { cloudReady } from '../cloud/config'
-import { getLineUser, initialView } from '../cloud/liff'
+import { cloudReady, liffReady } from '../cloud/config'
+import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
 import {
   addSurvey, listSurveys, saveEstimate, listEstimates, getEstimate,
   type SurveyRecord, type EstimateSummary, type EstimateSnapshot,
@@ -43,7 +43,16 @@ export default function SurveyTab() {
         <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>記録一覧</button>
         <button className={view === 'estimate' ? 'on' : ''} onClick={() => setView('estimate')}>見積呼出</button>
       </nav>
-      {lineUser && <div className="survey-line-user">LINE: {lineUser.displayName} さん</div>}
+      {lineUser ? (
+        <div className="survey-line-user">
+          LINE: {lineUser.displayName} さん
+          <small className="survey-uid">設定用ID: {lineUser.userId}</small>
+        </div>
+      ) : liffReady() && !isLineLoggedIn() ? (
+        <div className="survey-line-user">
+          <button className="survey-login" onClick={() => ensureLogin()}>LINEでログイン</button>
+        </div>
+      ) : null}
 
       {view === 'record' && <RecordForm defaultProject={project?.name ?? ''} defaultCustomer={project?.customerName ?? ''} onDone={() => setView('list')} />}
       {view === 'list' && <RecordList projectName={project?.name} />}
