@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import DrawingTab from './tabs/DrawingTab'
 import EstimateTab from './tabs/EstimateTab'
 import ScheduleTab from './tabs/ScheduleTab'
+import SurveyTab from './tabs/SurveyTab'
 import { db } from './db/db'
 import { ensureEstimate, pickScope } from './db/estimateRepo'
 import { ensurePlan, PROJECT_ID } from './db/planRepo'
@@ -12,10 +13,14 @@ import { exportAll, importAll } from './db/transfer'
 import { backupSupported, chooseBackupDir, getBackupDirName, runBackup } from './db/backup'
 import './App.css'
 
-type Tab = 'draw' | 'estimate' | 'schedule'
+type Tab = 'draw' | 'estimate' | 'schedule' | 'survey'
+
+// LINEリッチメニューから ?view=survey/list/estimate で開かれたら最初からアンケートタブを表示
+const initialTab = (): Tab =>
+  new URLSearchParams(window.location.search).get('view') ? 'survey' : 'draw'
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('draw')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [backupDir, setBackupDir] = useState<string | null>(null)
 
   useEffect(() => { ensurePlan(); ensureEstimate() }, [])
@@ -130,12 +135,14 @@ export default function App() {
         <button className={tab === 'draw' ? 'on' : ''} onClick={() => setTab('draw')}>作図</button>
         <button className={tab === 'estimate' ? 'on' : ''} onClick={() => setTab('estimate')}>見積・経費</button>
         <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>工程</button>
+        <button className={tab === 'survey' ? 'on' : ''} onClick={() => setTab('survey')}>アンケート</button>
       </nav>
 
       <div className="tab-body">
         <div className="pane" style={{ display: tab === 'draw' ? 'flex' : 'none' }}><DrawingTab onGoEstimate={() => setTab('estimate')} /></div>
         <div className="pane" style={{ display: tab === 'estimate' ? 'flex' : 'none' }}><EstimateTab /></div>
         <div className="pane" style={{ display: tab === 'schedule' ? 'flex' : 'none' }}><ScheduleTab /></div>
+        <div className="pane" style={{ display: tab === 'survey' ? 'flex' : 'none' }}><SurveyTab /></div>
       </div>
     </div>
   )

@@ -1,0 +1,60 @@
+.survey-tab { display: flex; flex-direction: column; gap: 12px; padding: 12px; max-width: 720px; width: 100%; margin: 0 auto; overflow-y: auto; }
+
+.survey-seg { display: flex; gap: 6px; }
+.survey-seg button { flex: 1; padding: 10px; border: 1px solid #ccc; background: #f7f7f7; border-radius: 8px; font-size: 15px; }
+.survey-seg button.on { background: #06c755; color: #fff; border-color: #06c755; font-weight: 700; }
+
+.survey-line-user { font-size: 12px; color: #06c755; }
+
+.survey-notice { background: #fff8e1; border: 1px solid #ffe08a; border-radius: 8px; padding: 14px; font-size: 14px; }
+.survey-notice code { background: #00000010; padding: 1px 4px; border-radius: 4px; }
+
+/* 入力フォーム */
+.survey-form { display: flex; flex-direction: column; gap: 12px; }
+.survey-form h3 { margin: 0; }
+.survey-fixed { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.survey-fixed label:first-child { grid-column: 1 / -1; }
+.survey-fixed label, .q-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #444; }
+.survey-fixed input, .q-field input, .q-field textarea, .q-field select {
+  padding: 9px; border: 1px solid #ccc; border-radius: 7px; font-size: 15px; width: 100%; box-sizing: border-box;
+}
+.q-label { font-weight: 600; color: #333; }
+.q-label em { color: #d33; font-style: normal; }
+.q-inline { display: flex; align-items: center; gap: 6px; }
+.q-unit { font-style: normal; color: #666; font-size: 13px; }
+.q-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.q-chip { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 999px; font-size: 14px; cursor: pointer; }
+.q-chip.on { background: #e6f7ee; border-color: #06c755; color: #06843b; }
+.q-chip input { display: none; }
+
+.survey-submit { padding: 14px; background: #06c755; color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; }
+.survey-submit:disabled { opacity: .6; }
+.survey-msg { font-size: 13px; color: #06843b; background: #e6f7ee; padding: 8px 10px; border-radius: 7px; }
+.survey-msg.err { color: #c0392b; background: #fdecea; }
+
+/* 一覧・見積 */
+.survey-list { display: flex; flex-direction: column; gap: 10px; }
+.survey-list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.survey-list-head button { padding: 9px 12px; border: 1px solid #ccc; background: #fff; border-radius: 8px; font-size: 14px; }
+.survey-filter { font-size: 13px; color: #444; display: inline-flex; align-items: center; gap: 6px; }
+
+.survey-card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 12px; background: #fff; }
+.survey-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.survey-card-head.clickable { cursor: pointer; }
+.survey-when { font-size: 12px; color: #888; white-space: nowrap; }
+.survey-card-sub { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #666; margin-top: 4px; }
+.survey-card-body { margin-top: 8px; font-size: 14px; color: #333; line-height: 1.5; white-space: pre-wrap; }
+.survey-amount { font-weight: 700; font-size: 16px; color: #06843b; white-space: nowrap; }
+.badge { font-size: 11px; background: #eef; color: #446; border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+
+.survey-detail { margin-top: 10px; border-top: 1px dashed #ddd; padding-top: 8px; }
+.survey-items { width: 100%; border-collapse: collapse; font-size: 13px; }
+.survey-items td { padding: 4px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.survey-items td.qt { text-align: right; color: #666; white-space: nowrap; }
+.survey-items td.am { text-align: right; white-space: nowrap; }
+.survey-items tr.major .nm { font-weight: 700; background: #f5f5f5; }
+.survey-items tr.section .nm { font-weight: 600; color: #555; }
+
+@media (max-width: 480px) {
+  .survey-fixed { grid-template-columns: 1fr; }
+}
