@@ -166,7 +166,7 @@ function RecordList({ projectName }: { projectName?: string }) {
     try { setRows(await listSurveys(onlyThis ? projectName : undefined)) }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
   }
-  useEffect(() => { load() }, [onlyThis]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [onlyThis, projectName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="survey-list">
