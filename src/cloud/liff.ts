@@ -17,11 +17,8 @@ export async function initLiff(): Promise<void> {
   initialized = true
   try {
     await window.liff.init({ liffId: LIFF_ID })
-    // LINEアプリ内で未ログインなら自動ログイン、外部ブラウザでは何もしない
-    if (window.liff.isInClient() && !window.liff.isLoggedIn()) {
-      window.liff.login()
-      return
-    }
+    // 初期化では自動リダイレクトしない（勝手にログインURLへ飛ばさない）。
+    // ログイン済みならプロフィールを取得するだけ。未ログインは「LINEでログイン」ボタンで対応。
     if (window.liff.isLoggedIn()) {
       profile = await window.liff.getProfile()
     }
