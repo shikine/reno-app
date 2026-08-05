@@ -10,6 +10,7 @@ import {
 } from '../survey/questions'
 import { cloudReady, liffReady } from '../cloud/config'
 import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
+import { compressImage, photoThumb, photoOpen } from '../cloud/image'
 import {
   addSurvey, updateSurvey, deleteSurvey, listSurveys, saveEstimate, listEstimates, getEstimate,
   type SurveyRecord, type EstimateSummary, type EstimateSnapshot,
@@ -75,28 +76,43 @@ function todayISO(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
+// 見積の項目は「一度読めたら固定」：端末にキャッシュし、以後はキャッシュ優先。
+// 変更があってクラウドに再保存されたら、次回取得時にキャッシュを更新する。
+const WORK_CACHE_KEY = 'reno.workdata'
+
+function readWorkCache(): { items: string[]; stages: string[] } | null {
+  try {
+    const c = localStorage.getItem(WORK_CACHE_KEY)
+    return c ? JSON.parse(c) : null
+  } catch { return null }
+}
+
 // クラウド保存済み見積から、作業内容の選択肢（工種/明細）と工程一覧（工種）を取り出す
 async function loadWorkData(): Promise<{ items: string[]; stages: string[] }> {
   try {
     const ests = await listEstimates()
-    if (!ests.length) return { items: [], stages: [] }
-    const pick = ests.find((e) => e.type === 'contract') ?? ests[0]
-    const snap = await getEstimate(pick.id)
-    const rows = snap?.data.items ?? []
-    const items: string[] = []
-    const stages: string[] = []
-    let major = ''
-    for (const it of rows) {
-      if (it.type === 'major') { major = it.name; if (major && !stages.includes(major)) stages.push(major) }
-      else if (it.type === 'item') items.push(major ? `${major} / ${it.name}` : it.name)
+    if (ests.length) {
+      const pick = ests.find((e) => e.type === 'contract') ?? ests[0]
+      const snap = await getEstimate(pick.id)
+      const rows = snap?.data.items ?? []
+      const items: string[] = []
+      const stages: string[] = []
+      let major = ''
+      for (const it of rows) {
+        if (it.type === 'major') { major = it.name; if (major && !stages.includes(major)) stages.push(major) }
+        else if (it.type === 'item') items.push(major ? `${major} / ${it.name}` : it.name)
+      }
+      if (items.length) {
+        try { localStorage.setItem(WORK_CACHE_KEY, JSON.stringify({ items, stages })) } catch { /* noop */ }
+        return { items, stages }
+      }
     }
-    return { items, stages }
-  } catch {
-    return { items: [], stages: [] }
-  }
+  } catch { /* オフライン等はキャッシュへ */ }
+  return readWorkCache() ?? { items: [], stages: [] }
 }
 
 function showAnswer(q: Question, v: unknown): string {
+  if (q.type === 'photo') { const n = Array.isArray(v) ? v.length : 0; return n ? `${n}枚` : '—' }
   if (q.type === 'attendance') return formatAttendance(v) || '—'
   if (q.type === 'stageprogress') return formatStageProgress(v) || '—'
   if (Array.isArray(v)) return v.length ? v.join('・') : '—'
@@ -116,7 +132,7 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
     }
     return init
   })
-  const [workOptions, setWorkOptions] = useState<string[]>([])
+  const [workOptions, setWorkOptions] = useState<string[]>(() => readWorkCache()?.items ?? [])
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -127,14 +143,17 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
   // 工程進捗の対象＝この日「何をしたか」で選んだ項目のみ（他はマップに残って引き継がれる）
   const selectedItems = Array.isArray(answers.workItems) ? (answers.workItems as string[]) : []
 
-  // 新規作成時のみ、前回の工程進捗を初期値に引き継ぐ
+  // 新規作成時のみ、前回の記録から「工程進捗」「来た人」を初期値に引き継ぐ（手間削減）
   useEffect(() => {
     if (editRecord) return
     listSurveys(FIXED_PROJECT).then((rows) => {
-      const last = rows[0]?.answers?.stageProgress
-      if (last && typeof last === 'object') {
-        setAnswers((a) => ({ ...a, stageProgress: { ...((a.stageProgress as object) ?? {}), ...(last as object) } }))
-      }
+      const last = rows[0]?.answers
+      if (!last) return
+      setAnswers((a) => ({
+        ...a,
+        stageProgress: { ...((a.stageProgress as object) ?? {}), ...((last.stageProgress as object) ?? {}) },
+        workers: (last.workers && typeof last.workers === 'object') ? last.workers : a.workers,
+      }))
     }).catch(() => { /* 記録が無ければ既定 */ })
   }, [editRecord])
 
@@ -220,6 +239,9 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
           ? <button className="wiz-next" onClick={next}>次へ →</button>
           : <button className="wiz-next" onClick={submit} disabled={saving}>{saving ? '保存中…' : (editRecord ? 'この内容で更新する' : 'この内容で記録する')}</button>}
       </div>
+      {!isReview && (
+        <button className="wiz-skip" onClick={() => { setMsg(''); setStep(total - 1) }}>変更なし → 確認へスキップ</button>
+      )}
     </div>
   )
 }
@@ -258,6 +280,37 @@ function QuestionField({ q, value, onChange, bare, dynamicOptions, stages }: {
           </div>
         ))}
       </div>
+    </div>
+  }
+
+  // 現場写真（最大3枚・圧縮してdata URL化。保存時にDriveへ）
+  if (q.type === 'photo') {
+    const arr = Array.isArray(value) ? (value as string[]) : []
+    const MAX = 3
+    const addFiles = async (files: FileList | null) => {
+      if (!files || files.length === 0) return
+      const room = MAX - arr.length
+      const picked = Array.from(files).slice(0, room)
+      try {
+        const compressed = await Promise.all(picked.map((f) => compressImage(f)))
+        onChange([...arr, ...compressed])
+      } catch { /* 圧縮失敗は無視 */ }
+    }
+    return <div className="q-field">{label}
+      <div className="photo-grid">
+        {arr.map((p, i) => (
+          <div key={i} className="photo-thumb">
+            <img src={photoThumb(p)} alt="" />
+            <button type="button" onClick={() => onChange(arr.filter((_, j) => j !== i))}>×</button>
+          </div>
+        ))}
+        {arr.length < MAX && (
+          <label className="photo-add">＋写真
+            <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addFiles(e.target.files)} />
+          </label>
+        )}
+      </div>
+      <div className="q-hint">最大{MAX}枚。撮影/選択すると自動で圧縮して保存します。</div>
     </div>
   }
 
@@ -404,6 +457,15 @@ function RecordList({ projectName, onEdit }: { projectName?: string; onEdit: (r:
               <span className="survey-card-prog-val">{p}%</span>
             </div>
             <div className="survey-card-body">{r.summary || '（内容なし）'}</div>
+            {Array.isArray(r.answers?.photos) && (r.answers.photos as string[]).length > 0 && (
+              <div className="photo-grid list">
+                {(r.answers.photos as string[]).map((p, i) => (
+                  <a key={i} href={photoOpen(p)} target="_blank" rel="noreferrer" className="photo-thumb">
+                    <img src={photoThumb(p)} alt="" />
+                  </a>
+                ))}
+              </div>
+            )}
             <div className="survey-card-actions">
               <button onClick={() => onEdit(r)} disabled={busyId === r.id}>✏️ 変更</button>
               <button className="danger" onClick={() => remove(r)} disabled={busyId === r.id}>{busyId === r.id ? '…' : '🗑 削除'}</button>

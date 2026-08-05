@@ -3,7 +3,7 @@
 
 export type QuestionType =
   | 'text' | 'textarea' | 'number' | 'select' | 'multiselect' | 'date' | 'time'
-  | 'workitems' | 'progress' | 'stageprogress' | 'attendance'
+  | 'workitems' | 'progress' | 'stageprogress' | 'attendance' | 'photo'
 
 // 来た人の時間帯
 export const ATTEND_SLOTS = ['午前', '午後', '全日'] as const
@@ -34,6 +34,8 @@ export const QUESTIONS: Question[] = [
   { id: 'endTime', label: '終了時刻', type: 'time', default: '17:00' },
   { id: 'workItems', label: '何をしたか（見積の項目から選択）', type: 'workitems' },
   { id: 'stageProgress', label: '工程ごとの進捗', type: 'stageprogress' },
+  // 写真は Drive 権限の再承認後に有効化する（下行を戻すと復活）
+  // { id: 'photos', label: '現場写真（最大3枚）', type: 'photo' },
   { id: 'note', label: 'メモ', type: 'textarea', placeholder: '特記事項・気づき など' },
 ]
 
@@ -66,7 +68,8 @@ export function buildSummary(answers: Record<string, unknown>): string {
     const v = answers[q.id]
     if (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)) continue
     let shown: string
-    if (q.type === 'stageprogress') { shown = formatStageProgress(v); if (!shown) continue }
+    if (q.type === 'photo') { const n = Array.isArray(v) ? v.length : 0; if (!n) continue; shown = `${n}枚` }
+    else if (q.type === 'stageprogress') { shown = formatStageProgress(v); if (!shown) continue }
     else if (q.type === 'attendance') { shown = formatAttendance(v); if (!shown) continue }
     else if (Array.isArray(v)) shown = v.join('・')
     else if (q.type === 'progress') shown = `${v}%`

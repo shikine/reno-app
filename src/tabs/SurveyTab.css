@@ -111,6 +111,14 @@
 .survey-card-actions button { flex: 1; padding: 8px; border: 1px solid #ccc; background: #fff; border-radius: 8px; font-size: 13px; }
 .survey-card-actions button.danger { color: #c0392b; border-color: #e6b0aa; }
 
+/* 現場写真 */
+.photo-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-thumb { position: relative; width: 96px; height: 96px; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; display: block; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-thumb button { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border: none; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 15px; line-height: 1; }
+.photo-add { width: 96px; height: 96px; border: 2px dashed #06c755; border-radius: 8px; color: #06843b; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.photo-grid.list .photo-thumb { width: 72px; height: 72px; }
+
 .wiz-review { display: flex; flex-direction: column; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
 .rev-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #f2f2f2; font-size: 14px; }
 .rev-row:last-child { border-bottom: none; }
@@ -121,6 +129,7 @@
 .wiz-back { flex: 0 0 auto; padding: 14px 18px; border: 1px solid #ccc; background: #fff; border-radius: 10px; font-size: 16px; }
 .wiz-next { flex: 1; padding: 14px; background: #06c755; color: #fff; border: none; border-radius: 10px; font-size: 17px; font-weight: 700; }
 .wiz-next:disabled { opacity: .6; }
+.wiz-skip { width: 100%; margin-top: 8px; padding: 10px; background: transparent; border: none; color: #06843b; font-size: 14px; text-decoration: underline; }
 
 .wiz-done { text-align: center; padding: 48px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .wiz-done-mark { width: 76px; height: 76px; border-radius: 50%; background: #06c755; color: #fff; font-size: 44px; display: flex; align-items: center; justify-content: center; }
