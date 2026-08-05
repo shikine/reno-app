@@ -57,6 +57,47 @@
 .survey-items tr.major .nm { font-weight: 700; background: #f5f5f5; }
 .survey-items tr.section .nm { font-weight: 600; color: #555; }
 
+/* ウィザード（1問ずつ） */
+.survey-wizard { display: flex; flex-direction: column; gap: 14px; min-height: 60vh; }
+.wiz-head { display: flex; justify-content: space-between; align-items: baseline; }
+.wiz-title { font-weight: 700; font-size: 15px; }
+.wiz-count { font-size: 13px; color: #888; }
+.wiz-bar { height: 6px; background: #eee; border-radius: 999px; overflow: hidden; }
+.wiz-bar-in { height: 100%; background: #06c755; transition: width .2s ease; }
+.wiz-body { flex: 1; }
+.wiz-step { display: flex; flex-direction: column; gap: 12px; }
+.wiz-q { margin: 6px 0 2px; font-size: 22px; line-height: 1.35; }
+.wiz-q .req { color: #d33; font-style: normal; }
+.wiz-step .q-field input, .wiz-step .q-field textarea, .wiz-step .q-field select { font-size: 17px; padding: 12px; }
+.wiz-step .q-chip { font-size: 16px; padding: 10px 14px; }
+.wiz-step textarea { min-height: 120px; }
+
+.wiz-review { display: flex; flex-direction: column; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
+.rev-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #f2f2f2; font-size: 14px; }
+.rev-row:last-child { border-bottom: none; }
+.rev-row span { color: #777; flex: 0 0 40%; }
+.rev-row b { text-align: right; word-break: break-word; }
+
+.wiz-nav { display: flex; gap: 10px; position: sticky; bottom: 0; background: #fff; padding-top: 8px; }
+.wiz-back { flex: 0 0 auto; padding: 14px 18px; border: 1px solid #ccc; background: #fff; border-radius: 10px; font-size: 16px; }
+.wiz-next { flex: 1; padding: 14px; background: #06c755; color: #fff; border: none; border-radius: 10px; font-size: 17px; font-weight: 700; }
+.wiz-next:disabled { opacity: .6; }
+
+.wiz-done { text-align: center; padding: 48px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.wiz-done-mark { width: 76px; height: 76px; border-radius: 50%; background: #06c755; color: #fff; font-size: 44px; display: flex; align-items: center; justify-content: center; }
+.wiz-done h3 { margin: 8px 0 0; }
+.wiz-done p { color: #666; margin: 0; }
+
+/* 見積：選択肢ボタン＆結果 */
+.est-choice { display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%; padding: 14px; border: 1px solid #e0e0e0; border-radius: 10px; background: #fff; cursor: pointer; }
+.est-choice:active { background: #f4fff8; }
+.est-choice-top { display: flex; align-items: baseline; gap: 8px; }
+.est-choice-top b { font-size: 16px; }
+.est-choice-top .survey-amount { margin-left: auto; }
+.est-choice-sub { font-size: 12px; color: #777; }
+.est-result { border: 1px solid #e0e0e0; border-radius: 10px; padding: 14px; background: #fff; }
+.est-result-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+
 @media (max-width: 480px) {
   .survey-fixed { grid-template-columns: 1fr; }
 }

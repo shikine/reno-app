@@ -61,7 +61,11 @@ export default function SurveyTab() {
   )
 }
 
-// ---- 記録する（アンケート入力） ----
+// ---- 記録する（1問ずつのアンケート・ウィザード） ----
+
+function isEmpty(v: unknown): boolean {
+  return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0)
+}
 
 function RecordForm({ defaultProject, defaultCustomer, onDone }: {
   defaultProject: string; defaultCustomer: string; onDone: () => void
@@ -71,27 +75,38 @@ function RecordForm({ defaultProject, defaultCustomer, onDone }: {
   const [customerName, setCustomerName] = useState(defaultCustomer)
   const [respondent, setRespondent] = useState(lineUser?.displayName ?? '')
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
+  const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [done, setDone] = useState(false)
 
   useEffect(() => { setProjectName(defaultProject) }, [defaultProject])
   useEffect(() => { setCustomerName(defaultCustomer) }, [defaultCustomer])
 
+  const total = QUESTIONS.length + 2 // 0=基本情報, 1..N=各設問, 最後=確認
+  const isProfile = step === 0
+  const isReview = step === total - 1
+  const q = !isProfile && !isReview ? QUESTIONS[step - 1] : null
+
   const setAnswer = (id: string, v: unknown) => setAnswers((a) => ({ ...a, [id]: v }))
 
+  const next = () => {
+    setMsg('')
+    if (isProfile && !projectName.trim()) { setMsg('案件名を入力してください'); return }
+    if (q && q.required && isEmpty(answers[q.id])) { setMsg(`「${q.label}」は必須です`); return }
+    setStep((s) => Math.min(s + 1, total - 1))
+  }
+  const back = () => { setMsg(''); setStep((s) => Math.max(s - 1, 0)) }
+
   const submit = async () => {
-    for (const q of QUESTIONS) {
-      if (q.required && !answers[q.id]) { setMsg(`「${q.label}」は必須です`); return }
+    for (const qq of QUESTIONS) {
+      if (qq.required && isEmpty(answers[qq.id])) { setMsg(`「${qq.label}」が未入力です`); return }
     }
     setSaving(true); setMsg('')
     try {
-      await addSurvey({
-        projectName, customerName, respondent,
-        summary: buildSummary(answers), answers,
-      })
-      setMsg('保存しました。記録一覧に追加されました。')
-      setAnswers({})
-      setTimeout(onDone, 600)
+      await addSurvey({ projectName, customerName, respondent, summary: buildSummary(answers), answers })
+      setDone(true)
+      setTimeout(onDone, 1200)
     } catch (e) {
       setMsg('保存に失敗: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -99,29 +114,73 @@ function RecordForm({ defaultProject, defaultCustomer, onDone }: {
     }
   }
 
+  if (done) {
+    return (
+      <div className="wiz-done">
+        <div className="wiz-done-mark">✓</div>
+        <h3>記録しました</h3>
+        <p>「記録一覧」に追加されました。</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="survey-form">
-      <h3>{SURVEY_TITLE}</h3>
-      <div className="survey-fixed">
-        <label>案件名<input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
-        <label>顧客名<input value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></label>
-        <label>調査担当<input value={respondent} onChange={(e) => setRespondent(e.target.value)} /></label>
+    <div className="survey-wizard">
+      <div className="wiz-head">
+        <span className="wiz-title">{SURVEY_TITLE}</span>
+        <span className="wiz-count">{step + 1} / {total}</span>
+      </div>
+      <div className="wiz-bar"><div className="wiz-bar-in" style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
+
+      <div className="wiz-body">
+        {isProfile && (
+          <div className="wiz-step">
+            <h3 className="wiz-q">案件の基本情報</h3>
+            <label className="q-field"><span className="q-label">案件名<em> *</em></span>
+              <input value={projectName} onChange={(e) => setProjectName(e.target.value)} /></label>
+            <label className="q-field"><span className="q-label">顧客名</span>
+              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></label>
+            <label className="q-field"><span className="q-label">調査担当</span>
+              <input value={respondent} onChange={(e) => setRespondent(e.target.value)} /></label>
+          </div>
+        )}
+        {q && (
+          <div className="wiz-step">
+            <h3 className="wiz-q">{q.label}{q.required && <em className="req"> *</em>}</h3>
+            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} bare />
+          </div>
+        )}
+        {isReview && (
+          <div className="wiz-step">
+            <h3 className="wiz-q">内容を確認</h3>
+            <div className="wiz-review">
+              <div className="rev-row"><span>案件名</span><b>{projectName || '—'}</b></div>
+              <div className="rev-row"><span>顧客名</span><b>{customerName || '—'}</b></div>
+              <div className="rev-row"><span>調査担当</span><b>{respondent || '—'}</b></div>
+              {QUESTIONS.map((qq) => {
+                const v = answers[qq.id]
+                const shown = Array.isArray(v) ? v.join('・') : (isEmpty(v) ? '—' : String(v))
+                return <div key={qq.id} className="rev-row"><span>{qq.label}</span><b>{shown}</b></div>
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {QUESTIONS.map((q) => (
-        <QuestionField key={q.id} q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} />
-      ))}
+      {msg && <div className="survey-msg err">{msg}</div>}
 
-      {msg && <div className="survey-msg">{msg}</div>}
-      <button className="survey-submit" disabled={saving} onClick={submit}>
-        {saving ? '保存中…' : 'この内容で記録する'}
-      </button>
+      <div className="wiz-nav">
+        {step > 0 && <button className="wiz-back" onClick={back} disabled={saving}>← 戻る</button>}
+        {!isReview
+          ? <button className="wiz-next" onClick={next}>次へ →</button>
+          : <button className="wiz-next" onClick={submit} disabled={saving}>{saving ? '保存中…' : 'この内容で記録する'}</button>}
+      </div>
     </div>
   )
 }
 
-function QuestionField({ q, value, onChange }: { q: Question; value: unknown; onChange: (v: unknown) => void }) {
-  const label = <span className="q-label">{q.label}{q.required && <em> *</em>}</span>
+function QuestionField({ q, value, onChange, bare }: { q: Question; value: unknown; onChange: (v: unknown) => void; bare?: boolean }) {
+  const label = bare ? null : <span className="q-label">{q.label}{q.required && <em> *</em>}</span>
 
   if (q.type === 'textarea') {
     return <label className="q-field">{label}
@@ -213,8 +272,9 @@ function EstimateRecall() {
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
-  const [openId, setOpenId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   const [detail, setDetail] = useState<EstimateSnapshot | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   const load = async () => {
     setErr(''); setRows(null)
@@ -250,13 +310,56 @@ function EstimateRecall() {
     } finally { setBusy(false) }
   }
 
-  const openDetail = async (id: string) => {
-    if (openId === id) { setOpenId(null); setDetail(null); return }
-    setOpenId(id); setDetail(null)
+  const choose = async (id: string) => {
+    setSelected(id); setDetail(null); setLoadingDetail(true); setErr('')
     try { setDetail(await getEstimate(id)) }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
+    finally { setLoadingDetail(false) }
+  }
+  const backToList = () => { setSelected(null); setDetail(null); setErr('') }
+
+  const itemsTable = (items: NonNullable<EstimateSnapshot['data']['items']>) => (
+    <table className="survey-items">
+      <tbody>
+        {items.map((it, i) => (
+          <tr key={i} className={`lv${it.depth} ${it.type}`}>
+            <td className="nm" style={{ paddingLeft: 6 + it.depth * 14 }}>{it.name}</td>
+            <td className="qt">{it.type === 'item' ? `${it.quantity ?? ''}${it.unit ?? ''}` : ''}</td>
+            <td className="am">{it.type === 'item' ? yen(it.amount ?? 0) : ''}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
+  // 結果表示（選んだ見積の内容が「返ってくる」画面）
+  if (selected) {
+    return (
+      <div className="survey-list">
+        <button className="wiz-back" onClick={backToList}>← 別の見積を選ぶ</button>
+        {loadingDetail && <div className="survey-msg">読み込み中…</div>}
+        {err && <div className="survey-msg err">{err}</div>}
+        {detail && (
+          <div className="est-result">
+            <div className="est-result-head">
+              <b>{detail.label || typeLabel(detail.type)} <span className="badge">{typeLabel(detail.type)}</span></b>
+              <span className="survey-amount">{yen(detail.total)}</span>
+            </div>
+            <div className="survey-card-sub">
+              <span>{detail.projectName || '—'}</span>
+              <span>税抜 {yen(detail.sell)}</span>
+              <span>原価 {yen(detail.cost)}</span>
+              <span>粗利 {yen(detail.sell - detail.cost)}</span>
+              <span className="survey-when">{fmtDateTime(detail.savedAt)}</span>
+            </div>
+            {detail.data.items?.length ? itemsTable(detail.data.items) : <div className="survey-msg">明細なし</div>}
+          </div>
+        )}
+      </div>
+    )
   }
 
+  // 質問＋選択肢（どの見積を見るか）
   return (
     <div className="survey-list">
       <div className="survey-list-head">
@@ -265,38 +368,20 @@ function EstimateRecall() {
       </div>
       {msg && <div className="survey-msg">{msg}</div>}
       {err && <div className="survey-msg err">{err}</div>}
+      <h3 className="wiz-q">どの見積を見ますか？</h3>
       {!rows && !err && <div className="survey-msg">読み込み中…</div>}
-      {rows && rows.length === 0 && <div className="survey-msg">まだクラウドに保存された見積がありません。</div>}
+      {rows && rows.length === 0 && (
+        <div className="survey-msg">まだクラウドに保存された見積がありません。上の「⬆ 今の見積をクラウドに保存」で登録できます。</div>
+      )}
       {rows?.map((r) => (
-        <div key={r.id} className="survey-card">
-          <div className="survey-card-head clickable" onClick={() => openDetail(r.id)}>
-            <b>{r.label || r.type} <span className="badge">{typeLabel(r.type)}</span></b>
+        <button key={r.id} className="est-choice" onClick={() => choose(r.id)}>
+          <span className="est-choice-top">
+            <b>{r.label || typeLabel(r.type)}</b>
+            <span className="badge">{typeLabel(r.type)}</span>
             <span className="survey-amount">{yen(r.total)}</span>
-          </div>
-          <div className="survey-card-sub">
-            <span>{r.projectName || '—'}</span>
-            <span>粗利 {yen(r.sell - r.cost)}</span>
-            <span className="survey-when">{fmtDateTime(r.savedAt)}</span>
-          </div>
-          {openId === r.id && (
-            <div className="survey-detail">
-              {!detail && <div className="survey-msg">読み込み中…</div>}
-              {detail?.data.items?.length ? (
-                <table className="survey-items">
-                  <tbody>
-                    {detail.data.items.map((it, i) => (
-                      <tr key={i} className={`lv${it.depth} ${it.type}`}>
-                        <td className="nm" style={{ paddingLeft: 6 + it.depth * 14 }}>{it.name}</td>
-                        <td className="qt">{it.type === 'item' ? `${it.quantity ?? ''}${it.unit ?? ''}` : ''}</td>
-                        <td className="am">{it.type === 'item' ? yen(it.amount ?? 0) : ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : detail ? <div className="survey-msg">明細なし</div> : null}
-            </div>
-          )}
-        </div>
+          </span>
+          <span className="est-choice-sub">{r.projectName || '—'} ・ {fmtDateTime(r.savedAt)}</span>
+        </button>
       ))}
     </div>
   )
