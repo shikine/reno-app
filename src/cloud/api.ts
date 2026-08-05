@@ -77,6 +77,14 @@ export async function addSurvey(input: SurveyInput): Promise<string> {
   return r.id
 }
 
+export async function updateSurvey(id: string, input: SurveyInput): Promise<void> {
+  await rpc('survey.update', { id, payload: input })
+}
+
+export async function deleteSurvey(id: string): Promise<void> {
+  await rpc('survey.delete', { id })
+}
+
 export async function listSurveys(projectName?: string): Promise<SurveyRecord[]> {
   const r = await rpc<{ items: SurveyRecord[] }>('survey.list', projectName ? { projectName } : {})
   return r.items

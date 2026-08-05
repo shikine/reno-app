@@ -75,6 +75,42 @@
 .q-checks-col { flex-direction: column; align-items: stretch; }
 .q-chip-wide { justify-content: flex-start; width: 100%; box-sizing: border-box; }
 
+/* 来た人（時間帯） */
+.attend-list { display: flex; flex-direction: column; gap: 8px; }
+.attend-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 10px; }
+.attend-row.on { border-color: #06c755; background: #f2fdf7; }
+.attend-name { font-size: 16px; font-weight: 600; }
+.attend-slots { display: inline-flex; gap: 4px; }
+.attend-slots button { padding: 8px 10px; border: 1px solid #ccc; background: #fff; border-radius: 8px; font-size: 14px; }
+.attend-slots button.on { background: #06c755; color: #fff; border-color: #06c755; font-weight: 700; }
+
+/* 工程ごとの進捗 */
+.stage-list { display: flex; flex-direction: column; gap: 14px; }
+.stage-row { display: flex; flex-direction: column; gap: 4px; }
+.stage-row-top { display: flex; justify-content: space-between; align-items: baseline; }
+.stage-name { font-size: 15px; }
+.stage-row.done .stage-row-top b { color: #06843b; }
+.stage-row input[type=range], .q-progress input[type=range] { width: 100%; accent-color: #06c755; height: 28px; }
+.q-progress-val { font-size: 28px; font-weight: 800; color: #06843b; text-align: center; }
+.q-progress-scale { display: flex; justify-content: space-between; font-size: 11px; color: #999; }
+.q-progress-clear { text-align: center; color: #06843b; font-weight: 700; }
+
+/* 進捗ヘッダ（一覧） */
+.prog-head { border: 1px solid #cdeed9; background: #f2fdf7; border-radius: 10px; padding: 12px; }
+.prog-head.done { border-color: #06c755; background: #e7fbef; }
+.prog-head-top { display: flex; justify-content: space-between; align-items: baseline; }
+.prog-head-top b { font-size: 22px; color: #06843b; }
+.prog-clear { margin-top: 6px; color: #06843b; font-weight: 800; }
+.prog-bar { height: 10px; background: #e3e3e3; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.prog-bar.sm { height: 7px; margin-top: 0; flex: 1; }
+.prog-bar-in { height: 100%; background: #06c755; }
+
+.survey-card-prog { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.survey-card-prog-val { font-size: 12px; color: #06843b; font-weight: 700; min-width: 38px; text-align: right; }
+.survey-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.survey-card-actions button { flex: 1; padding: 8px; border: 1px solid #ccc; background: #fff; border-radius: 8px; font-size: 13px; }
+.survey-card-actions button.danger { color: #c0392b; border-color: #e6b0aa; }
+
 .wiz-review { display: flex; flex-direction: column; border: 1px solid #eee; border-radius: 10px; overflow: hidden; }
 .rev-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #f2f2f2; font-size: 14px; }
 .rev-row:last-child { border-bottom: none; }

@@ -4,11 +4,14 @@ import { PROJECT_ID } from '../db/planRepo'
 import { pickScope } from '../db/estimateRepo'
 import { computeTotals, itemSell, yen } from '../estimate/estimateTotals'
 import type { EstimateItem } from '../types/model'
-import { QUESTIONS, SURVEY_TITLE, FIXED_PROJECT, buildSummary, type Question } from '../survey/questions'
+import {
+  QUESTIONS, SURVEY_TITLE, FIXED_PROJECT, ATTEND_SLOTS, buildSummary, overallProgress,
+  formatAttendance, formatStageProgress, type Question,
+} from '../survey/questions'
 import { cloudReady, liffReady } from '../cloud/config'
 import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
 import {
-  addSurvey, listSurveys, saveEstimate, listEstimates, getEstimate,
+  addSurvey, updateSurvey, deleteSurvey, listSurveys, saveEstimate, listEstimates, getEstimate,
   type SurveyRecord, type EstimateSummary, type EstimateSnapshot,
 } from '../cloud/api'
 import './SurveyTab.css'
@@ -17,6 +20,7 @@ type View = 'record' | 'list' | 'estimate'
 
 export default function SurveyTab() {
   const [view, setView] = useState<View>(() => initialView() ?? 'record')
+  const [editing, setEditing] = useState<SurveyRecord | null>(null)
   const lineUser = getLineUser()
 
   if (!cloudReady()) {
@@ -37,7 +41,7 @@ export default function SurveyTab() {
   return (
     <div className="survey-tab">
       <nav className="survey-seg no-print">
-        <button className={view === 'record' ? 'on' : ''} onClick={() => setView('record')}>記録する</button>
+        <button className={view === 'record' ? 'on' : ''} onClick={() => { setEditing(null); setView('record') }}>記録する</button>
         <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>記録一覧</button>
         <button className={view === 'estimate' ? 'on' : ''} onClick={() => setView('estimate')}>見積呼出</button>
       </nav>
@@ -52,8 +56,8 @@ export default function SurveyTab() {
         </div>
       ) : null}
 
-      {view === 'record' && <RecordForm onDone={() => setView('list')} />}
-      {view === 'list' && <RecordList projectName={FIXED_PROJECT} />}
+      {view === 'record' && <RecordForm key={editing?.id ?? 'new'} editRecord={editing} onDone={() => { setEditing(null); setView('list') }} />}
+      {view === 'list' && <RecordList projectName={FIXED_PROJECT} onEdit={(r) => { setEditing(r); setView('record') }} />}
       {view === 'estimate' && <EstimateRecall />}
     </div>
   )
@@ -71,30 +75,40 @@ function todayISO(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-// 見積の小項目を「工種 / 明細」の選択肢に変換（クラウド保存済み見積から）
-async function loadWorkOptions(): Promise<string[]> {
+// クラウド保存済み見積から、作業内容の選択肢（工種/明細）と工程一覧（工種）を取り出す
+async function loadWorkData(): Promise<{ items: string[]; stages: string[] }> {
   try {
     const ests = await listEstimates()
-    if (!ests.length) return []
+    if (!ests.length) return { items: [], stages: [] }
     const pick = ests.find((e) => e.type === 'contract') ?? ests[0]
     const snap = await getEstimate(pick.id)
-    const items = snap?.data.items ?? []
-    const opts: string[] = []
+    const rows = snap?.data.items ?? []
+    const items: string[] = []
+    const stages: string[] = []
     let major = ''
-    for (const it of items) {
-      if (it.type === 'major') major = it.name
-      else if (it.type === 'item') opts.push(major ? `${major} / ${it.name}` : it.name)
+    for (const it of rows) {
+      if (it.type === 'major') { major = it.name; if (major && !stages.includes(major)) stages.push(major) }
+      else if (it.type === 'item') items.push(major ? `${major} / ${it.name}` : it.name)
     }
-    return opts
+    return { items, stages }
   } catch {
-    return []
+    return { items: [], stages: [] }
   }
 }
 
-function RecordForm({ onDone }: { onDone: () => void }) {
+function showAnswer(q: Question, v: unknown): string {
+  if (q.type === 'attendance') return formatAttendance(v) || '—'
+  if (q.type === 'stageprogress') return formatStageProgress(v) || '—'
+  if (Array.isArray(v)) return v.length ? v.join('・') : '—'
+  if (isEmpty(v)) return '—'
+  return q.type === 'progress' ? `${v}%` : String(v)
+}
+
+function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: SurveyRecord | null }) {
   const lineUser = getLineUser()
   const [respondent] = useState(lineUser?.displayName ?? '')
   const [answers, setAnswers] = useState<Record<string, unknown>>(() => {
+    if (editRecord) return { ...editRecord.answers }
     const init: Record<string, unknown> = {}
     for (const q of QUESTIONS) {
       if (q.type === 'date' && q.default === 'today') init[q.id] = todayISO()
@@ -103,12 +117,24 @@ function RecordForm({ onDone }: { onDone: () => void }) {
     return init
   })
   const [workOptions, setWorkOptions] = useState<string[]>([])
+  const [stages, setStages] = useState<string[]>([])
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [done, setDone] = useState(false)
 
-  useEffect(() => { loadWorkOptions().then(setWorkOptions) }, [])
+  useEffect(() => { loadWorkData().then((d) => { setWorkOptions(d.items); setStages(d.stages) }) }, [])
+
+  // 新規作成時のみ、前回の工程進捗を初期値に引き継ぐ
+  useEffect(() => {
+    if (editRecord) return
+    listSurveys(FIXED_PROJECT).then((rows) => {
+      const last = rows[0]?.answers?.stageProgress
+      if (last && typeof last === 'object') {
+        setAnswers((a) => ({ ...a, stageProgress: { ...((a.stageProgress as object) ?? {}), ...(last as object) } }))
+      }
+    }).catch(() => { /* 記録が無ければ既定 */ })
+  }, [editRecord])
 
   const total = QUESTIONS.length + 1 // 1..N=各設問, 最後=確認
   const isReview = step === total - 1
@@ -129,13 +155,16 @@ function RecordForm({ onDone }: { onDone: () => void }) {
     }
     setSaving(true); setMsg('')
     try {
-      const workers = Array.isArray(answers.workers) ? (answers.workers as string[]).join('・') : ''
-      await addSurvey({
-        projectName: FIXED_PROJECT, customerName: '', respondent: workers || respondent,
+      const att = (answers.workers && typeof answers.workers === 'object') ? (answers.workers as Record<string, string>) : {}
+      const workerNames = Object.keys(att).filter((k) => att[k]).join('・')
+      const payload = {
+        projectName: FIXED_PROJECT, customerName: '', respondent: workerNames || respondent,
         summary: buildSummary(answers), answers,
-      })
+      }
+      if (editRecord) await updateSurvey(editRecord.id, payload)
+      else await addSurvey(payload)
       setDone(true)
-      setTimeout(onDone, 1200)
+      setTimeout(onDone, 1000)
     } catch (e) {
       setMsg('保存に失敗: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
@@ -147,8 +176,8 @@ function RecordForm({ onDone }: { onDone: () => void }) {
     return (
       <div className="wiz-done">
         <div className="wiz-done-mark">✓</div>
-        <h3>記録しました</h3>
-        <p>「記録一覧」に追加されました。</p>
+        <h3>{editRecord ? '更新しました' : '記録しました'}</h3>
+        <p>「記録一覧」に反映されました。</p>
       </div>
     )
   }
@@ -156,7 +185,7 @@ function RecordForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="survey-wizard">
       <div className="wiz-head">
-        <span className="wiz-title">{SURVEY_TITLE}（{FIXED_PROJECT}）</span>
+        <span className="wiz-title">{editRecord ? '日報を編集' : SURVEY_TITLE}（{FIXED_PROJECT}）</span>
         <span className="wiz-count">{step + 1} / {total}</span>
       </div>
       <div className="wiz-bar"><div className="wiz-bar-in" style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
@@ -165,7 +194,7 @@ function RecordForm({ onDone }: { onDone: () => void }) {
         {q && (
           <div className="wiz-step">
             <h3 className="wiz-q">{q.label}{q.required && <em className="req"> *</em>}</h3>
-            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} dynamicOptions={workOptions} bare />
+            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} dynamicOptions={workOptions} stages={stages} bare />
           </div>
         )}
         {isReview && (
@@ -173,11 +202,9 @@ function RecordForm({ onDone }: { onDone: () => void }) {
             <h3 className="wiz-q">内容を確認</h3>
             <div className="wiz-review">
               <div className="rev-row"><span>物件</span><b>{FIXED_PROJECT}</b></div>
-              {QUESTIONS.map((qq) => {
-                const v = answers[qq.id]
-                const shown = Array.isArray(v) ? v.join('・') : (isEmpty(v) ? '—' : String(v))
-                return <div key={qq.id} className="rev-row"><span>{qq.label.replace(/（.*?）/g, '')}</span><b>{shown}</b></div>
-              })}
+              {QUESTIONS.map((qq) => (
+                <div key={qq.id} className="rev-row"><span>{qq.label.replace(/（.*?）/g, '')}</span><b>{showAnswer(qq, answers[qq.id])}</b></div>
+              ))}
             </div>
           </div>
         )}
@@ -189,14 +216,15 @@ function RecordForm({ onDone }: { onDone: () => void }) {
         {step > 0 && <button className="wiz-back" onClick={back} disabled={saving}>← 戻る</button>}
         {!isReview
           ? <button className="wiz-next" onClick={next}>次へ →</button>
-          : <button className="wiz-next" onClick={submit} disabled={saving}>{saving ? '保存中…' : 'この内容で記録する'}</button>}
+          : <button className="wiz-next" onClick={submit} disabled={saving}>{saving ? '保存中…' : (editRecord ? 'この内容で更新する' : 'この内容で記録する')}</button>}
       </div>
     </div>
   )
 }
 
-function QuestionField({ q, value, onChange, bare, dynamicOptions }: {
-  q: Question; value: unknown; onChange: (v: unknown) => void; bare?: boolean; dynamicOptions?: string[]
+function QuestionField({ q, value, onChange, bare, dynamicOptions, stages }: {
+  q: Question; value: unknown; onChange: (v: unknown) => void
+  bare?: boolean; dynamicOptions?: string[]; stages?: string[]
 }) {
   const label = bare ? null : <span className="q-label">{q.label}{q.required && <em> *</em>}</span>
 
@@ -204,6 +232,56 @@ function QuestionField({ q, value, onChange, bare, dynamicOptions }: {
     return <label className="q-field">{label}
       <input type="time" value={String(value ?? '')} onChange={(e) => onChange(e.target.value)} />
     </label>
+  }
+
+  // 来た人：人ごとに 午前/午後/全日（なしはタップで解除）
+  if (q.type === 'attendance') {
+    const map = (value && typeof value === 'object') ? (value as Record<string, string>) : {}
+    const setSlot = (name: string, slot: string) => {
+      const next = { ...map }
+      if (next[name] === slot) delete next[name] // 同じをもう一度で解除
+      else next[name] = slot
+      onChange(next)
+    }
+    return <div className="q-field">{label}
+      <div className="attend-list">
+        {(q.options ?? []).map((name) => (
+          <div key={name} className={`attend-row ${map[name] ? 'on' : ''}`}>
+            <span className="attend-name">{name}</span>
+            <span className="attend-slots">
+              {ATTEND_SLOTS.map((s) => (
+                <button key={s} type="button" className={map[name] === s ? 'on' : ''} onClick={() => setSlot(name, s)}>{s}</button>
+              ))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  }
+
+  // 工程ごとの進捗（前回値を引き継いで更新）
+  if (q.type === 'stageprogress') {
+    const list = stages ?? []
+    const map = (value && typeof value === 'object') ? (value as Record<string, number>) : {}
+    if (list.length === 0) {
+      return <div className="q-field">{label}
+        <div className="q-hint">工程は見積の工種から取得します。「見積を見る」でクラウド保存すると、工程ごとに進捗を入力できます。</div>
+      </div>
+    }
+    const setPct = (stage: string, pct: number) => onChange({ ...map, [stage]: pct })
+    return <div className="q-field">{label}
+      <div className="stage-list">
+        {list.map((stage) => {
+          const n = Math.max(0, Math.min(100, Number(map[stage] ?? 0)))
+          return (
+            <div key={stage} className={`stage-row ${n >= 100 ? 'done' : ''}`}>
+              <div className="stage-row-top"><span className="stage-name">{stage}</span><b>{n}%{n >= 100 ? ' ✓' : ''}</b></div>
+              <input type="range" min={0} max={100} step={5} value={n} onChange={(e) => setPct(stage, Number(e.target.value))} />
+            </div>
+          )
+        })}
+      </div>
+    </div>
   }
 
   // 見積の小項目から複数選択（未保存なら自由入力にフォールバック）
@@ -270,43 +348,67 @@ function QuestionField({ q, value, onChange, bare, dynamicOptions }: {
 
 // ---- 記録一覧 ----
 
-function RecordList({ projectName }: { projectName?: string }) {
+function RecordList({ projectName, onEdit }: { projectName?: string; onEdit: (r: SurveyRecord) => void }) {
   const [rows, setRows] = useState<SurveyRecord[] | null>(null)
   const [err, setErr] = useState('')
-  const [onlyThis, setOnlyThis] = useState(true)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   const load = async () => {
     setErr(''); setRows(null)
-    try { setRows(await listSurveys(onlyThis ? projectName : undefined)) }
+    try { setRows(await listSurveys(projectName)) }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
   }
-  useEffect(() => { load() }, [onlyThis, projectName]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [projectName]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const progOf = (r: SurveyRecord) => overallProgress(r.answers?.stageProgress)
+  const current = rows && rows.length > 0 ? progOf(rows[0]) : 0 // 最新（先頭）が現在の進捗
+
+  const remove = async (r: SurveyRecord) => {
+    if (!window.confirm(`${fmtDateTime(r.createdAt)} の記録を削除します。よろしいですか？`)) return
+    setBusyId(r.id); setErr('')
+    try { await deleteSurvey(r.id); await load() }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
+    finally { setBusyId(null) }
+  }
 
   return (
     <div className="survey-list">
       <div className="survey-list-head">
-        <label className="survey-filter">
-          <input type="checkbox" checked={onlyThis} onChange={(e) => setOnlyThis(e.target.checked)} />
-          この案件のみ（{projectName || '—'}）
-        </label>
+        <span className="survey-filter">物件：{projectName || '—'}</span>
         <button onClick={load}>↻ 更新</button>
       </div>
+
+      {rows && rows.length > 0 && (
+        <div className={`prog-head ${current >= 100 ? 'done' : ''}`}>
+          <div className="prog-head-top"><span>現在の進捗（工程平均）</span><b>{current}%</b></div>
+          <div className="prog-bar"><div className="prog-bar-in" style={{ width: `${current}%` }} /></div>
+          {current >= 100 && <div className="prog-clear">✅ 工事完了（クリア）</div>}
+        </div>
+      )}
+
       {err && <div className="survey-msg err">{err}</div>}
       {!rows && !err && <div className="survey-msg">読み込み中…</div>}
       {rows && rows.length === 0 && <div className="survey-msg">まだ記録がありません。</div>}
-      {rows?.map((r) => (
-        <div key={r.id} className="survey-card">
-          <div className="survey-card-head">
-            <b>{r.projectName || '（案件名なし）'}</b>
-            <span className="survey-when">{fmtDateTime(r.createdAt)}</span>
+      {rows?.map((r) => {
+        const p = progOf(r)
+        return (
+          <div key={r.id} className="survey-card">
+            <div className="survey-card-head">
+              <b>{r.respondent || '記録'}</b>
+              <span className="survey-when">{fmtDateTime(r.createdAt)}</span>
+            </div>
+            <div className="survey-card-prog">
+              <div className="prog-bar sm"><div className="prog-bar-in" style={{ width: `${p}%` }} /></div>
+              <span className="survey-card-prog-val">{p}%</span>
+            </div>
+            <div className="survey-card-body">{r.summary || '（内容なし）'}</div>
+            <div className="survey-card-actions">
+              <button onClick={() => onEdit(r)} disabled={busyId === r.id}>✏️ 変更</button>
+              <button className="danger" onClick={() => remove(r)} disabled={busyId === r.id}>{busyId === r.id ? '…' : '🗑 削除'}</button>
+            </div>
           </div>
-          <div className="survey-card-sub">
-            {r.customerName && <span>顧客: {r.customerName}</span>}
-            {r.respondent && <span>担当: {r.respondent}</span>}
-          </div>
-          <div className="survey-card-body">{r.summary || '（内容なし）'}</div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
