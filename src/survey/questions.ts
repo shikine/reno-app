@@ -34,8 +34,7 @@ export const QUESTIONS: Question[] = [
   { id: 'endTime', label: '終了時刻', type: 'time', default: '17:00' },
   { id: 'workItems', label: '何をしたか（見積の項目から選択）', type: 'workitems' },
   { id: 'stageProgress', label: '工程ごとの進捗', type: 'stageprogress' },
-  // 写真は Drive 権限の再承認後に有効化する（下行を戻すと復活）
-  // { id: 'photos', label: '現場写真（最大3枚）', type: 'photo' },
+  { id: 'photos', label: '現場写真（最大3枚）', type: 'photo' },
   { id: 'note', label: 'メモ', type: 'textarea', placeholder: '特記事項・気づき など' },
 ]
 
