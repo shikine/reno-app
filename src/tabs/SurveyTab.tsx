@@ -117,13 +117,15 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
     return init
   })
   const [workOptions, setWorkOptions] = useState<string[]>([])
-  const [stages, setStages] = useState<string[]>([])
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [done, setDone] = useState(false)
 
-  useEffect(() => { loadWorkData().then((d) => { setWorkOptions(d.items); setStages(d.stages) }) }, [])
+  useEffect(() => { loadWorkData().then((d) => setWorkOptions(d.items)) }, [])
+
+  // 工程進捗の対象＝この日「何をしたか」で選んだ項目のみ（他はマップに残って引き継がれる）
+  const selectedItems = Array.isArray(answers.workItems) ? (answers.workItems as string[]) : []
 
   // 新規作成時のみ、前回の工程進捗を初期値に引き継ぐ
   useEffect(() => {
@@ -194,7 +196,7 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
         {q && (
           <div className="wiz-step">
             <h3 className="wiz-q">{q.label}{q.required && <em className="req"> *</em>}</h3>
-            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} dynamicOptions={workOptions} stages={stages} bare />
+            <QuestionField q={q} value={answers[q.id]} onChange={(v) => setAnswer(q.id, v)} dynamicOptions={workOptions} stages={selectedItems} bare />
           </div>
         )}
         {isReview && (
@@ -265,7 +267,7 @@ function QuestionField({ q, value, onChange, bare, dynamicOptions, stages }: {
     const map = (value && typeof value === 'object') ? (value as Record<string, number>) : {}
     if (list.length === 0) {
       return <div className="q-field">{label}
-        <div className="q-hint">工程は見積の工種から取得します。「見積を見る」でクラウド保存すると、工程ごとに進捗を入力できます。</div>
+        <div className="q-hint">前の「何をしたか」で項目を選ぶと、その項目だけ進捗%を入力できます。</div>
       </div>
     }
     const setPct = (stage: string, pct: number) => onChange({ ...map, [stage]: pct })
