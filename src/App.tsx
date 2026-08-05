@@ -5,6 +5,7 @@ import EstimateTab from './tabs/EstimateTab'
 import ScheduleTab from './tabs/ScheduleTab'
 import SurveyTab from './tabs/SurveyTab'
 import { db } from './db/db'
+import { getViewParam } from './cloud/liff'
 import { ensureEstimate, pickScope } from './db/estimateRepo'
 import { ensurePlan, PROJECT_ID } from './db/planRepo'
 import { computeTotals, yen } from './estimate/estimateTotals'
@@ -16,8 +17,8 @@ import './App.css'
 type Tab = 'draw' | 'estimate' | 'schedule' | 'survey'
 
 // LINEリッチメニューから ?view=survey/list/estimate で開かれたら最初からアンケートタブを表示
-const initialTab = (): Tab =>
-  new URLSearchParams(window.location.search).get('view') ? 'survey' : 'draw'
+// （LIFFは追加クエリを liff.state に包むことがあるため getViewParam で両対応）
+const initialTab = (): Tab => (getViewParam() ? 'survey' : 'draw')
 
 export default function App() {
   const [tab, setTab] = useState<Tab>(initialTab)

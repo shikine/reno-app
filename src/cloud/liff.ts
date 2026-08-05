@@ -60,13 +60,28 @@ export function isLineLoggedIn(): boolean {
   }
 }
 
-// URL の ?view=survey / ?view=estimate を読む（リッチメニューからの遷移先切替に使う）
-export function initialView(): 'record' | 'list' | 'estimate' | null {
+// リッチメニュー等から渡された ?view= を取得する。
+// LIFFは追加クエリを liff.state に包んで渡し、init時にURLを書き換えることがあるため、
+// モジュール読込の最速タイミング（liff.init前）で URL全体から view= を捕捉しておく。
+const capturedView: string | null = (() => {
   try {
-    const v = new URLSearchParams(window.location.search).get('view')
-    if (v === 'survey' || v === 'record') return 'record'
-    if (v === 'list') return 'list'
-    if (v === 'estimate') return 'estimate'
-  } catch { /* noop */ }
+    const decoded = decodeURIComponent(window.location.href)
+    const m = decoded.match(/[?&]view=([^&#]+)/)
+    return m ? m[1] : null
+  } catch {
+    return null
+  }
+})()
+
+export function getViewParam(): string | null {
+  return capturedView
+}
+
+// URL の ?view=survey / ?view=estimate を初期表示に対応づける
+export function initialView(): 'record' | 'list' | 'estimate' | null {
+  const v = getViewParam()
+  if (v === 'survey' || v === 'record') return 'record'
+  if (v === 'list') return 'list'
+  if (v === 'estimate') return 'estimate'
   return null
 }
