@@ -4,6 +4,7 @@ import DrawingTab from './tabs/DrawingTab'
 import EstimateTab from './tabs/EstimateTab'
 import ScheduleTab from './tabs/ScheduleTab'
 import SurveyTab from './tabs/SurveyTab'
+import WindowsTab from './tabs/WindowsTab'
 import { db } from './db/db'
 import { getViewParam } from './cloud/liff'
 import { ensureEstimate, pickScope } from './db/estimateRepo'
@@ -14,11 +15,15 @@ import { exportAll, importAll } from './db/transfer'
 import { backupSupported, chooseBackupDir, getBackupDirName, runBackup } from './db/backup'
 import './App.css'
 
-type Tab = 'draw' | 'estimate' | 'schedule' | 'survey'
+type Tab = 'draw' | 'estimate' | 'schedule' | 'survey' | 'windows'
 
-// LINEリッチメニューから ?view=survey/list/estimate で開かれたら最初からアンケートタブを表示
+// LINEリッチメニュー等から ?view=... で開かれたら該当タブを表示
 // （LIFFは追加クエリを liff.state に包むことがあるため getViewParam で両対応）
-const initialTab = (): Tab => (getViewParam() ? 'survey' : 'draw')
+const initialTab = (): Tab => {
+  const v = getViewParam()
+  if (v === 'windows' || v === 'tategu') return 'windows'
+  return v ? 'survey' : 'draw'
+}
 
 export default function App() {
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -137,6 +142,7 @@ export default function App() {
         <button className={tab === 'estimate' ? 'on' : ''} onClick={() => setTab('estimate')}>見積・経費</button>
         <button className={tab === 'schedule' ? 'on' : ''} onClick={() => setTab('schedule')}>工程</button>
         <button className={tab === 'survey' ? 'on' : ''} onClick={() => setTab('survey')}>アンケート</button>
+        <button className={tab === 'windows' ? 'on' : ''} onClick={() => setTab('windows')}>建具</button>
       </nav>
 
       <div className="tab-body">
@@ -144,6 +150,7 @@ export default function App() {
         <div className="pane" style={{ display: tab === 'estimate' ? 'flex' : 'none' }}><EstimateTab /></div>
         <div className="pane" style={{ display: tab === 'schedule' ? 'flex' : 'none' }}><ScheduleTab /></div>
         <div className="pane" style={{ display: tab === 'survey' ? 'flex' : 'none' }}><SurveyTab /></div>
+        <div className="pane" style={{ display: tab === 'windows' ? 'flex' : 'none' }}><WindowsTab /></div>
       </div>
     </div>
   )
