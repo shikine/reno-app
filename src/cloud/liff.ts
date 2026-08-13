@@ -75,10 +75,11 @@ export function getViewParam(): string | null {
 }
 
 // URL の ?view=survey / ?view=estimate を初期表示に対応づける
-export function initialView(): 'record' | 'list' | 'estimate' | null {
+export function initialView(): 'record' | 'list' | 'gantt' | 'estimate' | null {
   const v = getViewParam()
   if (v === 'survey' || v === 'record') return 'record'
   if (v === 'list') return 'list'
+  if (v === 'gantt') return 'gantt'
   if (v === 'estimate') return 'estimate'
   return null
 }

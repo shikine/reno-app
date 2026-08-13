@@ -1,0 +1,30 @@
+.gantt { display: flex; flex-direction: column; gap: 10px; }
+.gantt-head { display: flex; align-items: center; justify-content: space-between; }
+.gantt-title { font-weight: 700; font-size: 15px; }
+.gantt-head button { padding: 8px 12px; border: 1px solid #ccc; background: #fff; border-radius: 8px; font-size: 14px; }
+.gantt-overall { font-size: 14px; color: #333; }
+.gantt-overall b { color: #06843b; font-size: 18px; }
+.gantt-clear { color: #06843b; font-weight: 700; }
+
+.gantt-scroll { overflow-x: auto; border: 1px solid #eee; border-radius: 10px; -webkit-overflow-scrolling: touch; }
+.gantt-grid { position: relative; }
+.gantt-row { display: flex; align-items: stretch; border-bottom: 1px solid #f2f2f2; }
+.gantt-row:last-child { border-bottom: none; }
+
+.gantt-label { position: sticky; left: 0; z-index: 2; background: #fff; border-right: 1px solid #eee; padding: 10px 8px; font-size: 13px; font-weight: 600; color: #333; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gantt-track { position: relative; height: 40px; }
+
+.gantt-axis { background: #fafafa; }
+.gantt-axis .gantt-label { background: #fafafa; font-weight: 700; color: #666; }
+.gantt-axis .gantt-track { height: 30px; }
+.gantt-tick { position: absolute; top: 0; height: 100%; border-left: 1px solid #eee; font-size: 10px; color: #999; padding-left: 3px; box-sizing: border-box; display: flex; align-items: center; }
+.gantt-tick.today { background: #eafff2; }
+
+.gantt-todayline { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff6b6b; opacity: .5; z-index: 1; }
+
+.gantt-bar { position: absolute; top: 7px; height: 26px; border-radius: 7px; background: #d7f0e2; overflow: hidden; display: flex; align-items: center; min-width: 30px; z-index: 1; box-shadow: inset 0 0 0 1px #b9e3cd; }
+.gantt-bar.done { box-shadow: inset 0 0 0 1px #06c755; }
+.gantt-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #06c755; opacity: .85; }
+.gantt-pct { position: relative; z-index: 1; font-size: 11px; font-weight: 700; color: #0a5c37; padding: 0 6px; }
+
+.gantt-note { font-size: 11px; color: #999; margin: 2px 0 0; }

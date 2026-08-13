@@ -11,13 +11,14 @@ import {
 import { cloudReady, liffReady } from '../cloud/config'
 import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
 import { compressImage, photoThumb, photoOpen } from '../cloud/image'
+import GanttView from './GanttView'
 import {
   addSurvey, updateSurvey, deleteSurvey, listSurveys, saveEstimate, listEstimates, getEstimate,
   type SurveyRecord, type EstimateSummary, type EstimateSnapshot,
 } from '../cloud/api'
 import './SurveyTab.css'
 
-type View = 'record' | 'list' | 'estimate'
+type View = 'record' | 'list' | 'gantt' | 'estimate'
 
 export default function SurveyTab() {
   const [view, setView] = useState<View>(() => initialView() ?? 'record')
@@ -44,6 +45,7 @@ export default function SurveyTab() {
       <nav className="survey-seg no-print">
         <button className={view === 'record' ? 'on' : ''} onClick={() => { setEditing(null); setView('record') }}>記録する</button>
         <button className={view === 'list' ? 'on' : ''} onClick={() => setView('list')}>記録一覧</button>
+        <button className={view === 'gantt' ? 'on' : ''} onClick={() => setView('gantt')}>ガント</button>
         <button className={view === 'estimate' ? 'on' : ''} onClick={() => setView('estimate')}>見積呼出</button>
       </nav>
       {lineUser ? (
@@ -59,6 +61,7 @@ export default function SurveyTab() {
 
       {view === 'record' && <RecordForm key={editing?.id ?? 'new'} editRecord={editing} onDone={() => { setEditing(null); setView('list') }} />}
       {view === 'list' && <RecordList projectName={FIXED_PROJECT} onEdit={(r) => { setEditing(r); setView('record') }} />}
+      {view === 'gantt' && <GanttView projectName={FIXED_PROJECT} />}
       {view === 'estimate' && <EstimateRecall />}
     </div>
   )
