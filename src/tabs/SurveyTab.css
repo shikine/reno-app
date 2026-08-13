@@ -71,6 +71,9 @@
 .wiz-step .q-field input, .wiz-step .q-field textarea, .wiz-step .q-field select { font-size: 17px; padding: 12px; }
 .wiz-step .q-chip { font-size: 16px; padding: 10px 14px; }
 .wiz-step textarea { min-height: 120px; }
+.cat-choices { display: flex; gap: 12px; }
+.cat-btn { flex: 1; padding: 26px 10px; border: 2px solid #ccc; background: #fff; border-radius: 14px; font-size: 20px; font-weight: 700; color: #444; }
+.cat-btn.on { border-color: #06c755; background: #eafff2; color: #06843b; }
 .q-hint { font-size: 12px; color: #b26a00; background: #fff8e1; border-radius: 6px; padding: 8px 10px; }
 .q-checks-col { flex-direction: column; align-items: stretch; }
 .q-chip-wide { justify-content: flex-start; width: 100%; box-sizing: border-box; }

@@ -3,7 +3,12 @@
 
 export type QuestionType =
   | 'text' | 'textarea' | 'number' | 'select' | 'multiselect' | 'date' | 'time'
-  | 'workitems' | 'progress' | 'stageprogress' | 'attendance' | 'photo'
+  | 'workitems' | 'progress' | 'stageprogress' | 'attendance' | 'photo' | 'category'
+
+// 記録の区分（大工／施主）。group がこの値と一致する設問だけ出す。
+export const CATEGORIES = ['大工', '施主'] as const
+// 施主の活動メニュー
+export const OWNER_ACTS = ['デザイン提案', '配置の提案', '構造の提案', '什器・建具の購入', '図面送付', '打合せ', 'その他']
 
 // 来た人の時間帯
 export const ATTEND_SLOTS = ['午前', '午後', '全日'] as const
@@ -17,6 +22,7 @@ export interface Question {
   placeholder?: string
   unit?: string          // number の後ろに表示
   default?: string       // 既定値。date は 'today' で今日
+  group?: '大工' | '施主' // 指定時は、その区分のときだけ表示（未指定＝常に表示）
 }
 
 // 記録をまとめる物件（固定）。物件が変わる場合はここを変更。
@@ -25,18 +31,29 @@ export const FIXED_PROJECT = '烏帽子家'
 export const SURVEY_TITLE = '工事進捗 日報'
 
 export const QUESTIONS: Question[] = [
+  { id: 'category', label: '記録の区分', type: 'category', options: [...CATEGORIES], required: true },
   { id: 'workDate', label: '日付', type: 'date', required: true, default: 'today' },
+  // ---- 大工 ----
   {
-    id: 'workers', label: '来た人（時間帯）', type: 'attendance',
+    id: 'workers', label: '来た人（時間帯）', type: 'attendance', group: '大工',
     options: ['安崎さん', 'お手伝い', '設備', '左官', 'その他'],
   },
-  { id: 'startTime', label: '開始時刻', type: 'time', default: '08:00' },
-  { id: 'endTime', label: '終了時刻', type: 'time', default: '17:00' },
-  { id: 'workItems', label: '何をしたか（見積の項目から選択）', type: 'workitems' },
-  { id: 'stageProgress', label: '工程ごとの進捗', type: 'stageprogress' },
+  { id: 'startTime', label: '開始時刻', type: 'time', default: '08:00', group: '大工' },
+  { id: 'endTime', label: '終了時刻', type: 'time', default: '17:00', group: '大工' },
+  { id: 'workItems', label: '何をしたか（見積の項目から選択）', type: 'workitems', group: '大工' },
+  { id: 'stageProgress', label: '工程ごとの進捗', type: 'stageprogress', group: '大工' },
+  // ---- 施主 ----
+  { id: 'ownerActs', label: '施主がしたこと', type: 'multiselect', options: OWNER_ACTS, group: '施主' },
+  { id: 'ownerDetail', label: '内容・詳細', type: 'textarea', group: '施主', placeholder: '提案内容・購入品・送った図面 など' },
+  // ---- 共通 ----
   { id: 'photos', label: '現場写真（最大3枚）', type: 'photo' },
   { id: 'note', label: 'メモ', type: 'textarea', placeholder: '特記事項・気づき など' },
 ]
+
+// 区分に応じて表示する設問を返す
+export function questionsFor(category: unknown): Question[] {
+  return QUESTIONS.filter((q) => !q.group || q.group === category)
+}
 
 // attendance（人→時間帯のマップ）を「安崎さん(全日)・設備(午前)」の文字列にする
 export function formatAttendance(v: unknown): string {

@@ -5,8 +5,8 @@ import { pickScope } from '../db/estimateRepo'
 import { computeTotals, itemSell, yen } from '../estimate/estimateTotals'
 import type { EstimateItem } from '../types/model'
 import {
-  QUESTIONS, SURVEY_TITLE, FIXED_PROJECT, ATTEND_SLOTS, buildSummary, overallProgress,
-  formatAttendance, formatStageProgress, type Question,
+  QUESTIONS, SURVEY_TITLE, FIXED_PROJECT, ATTEND_SLOTS, CATEGORIES, questionsFor,
+  buildSummary, overallProgress, formatAttendance, formatStageProgress, type Question,
 } from '../survey/questions'
 import { cloudReady, liffReady } from '../cloud/config'
 import { getLineUser, initialView, ensureLogin, isLineLoggedIn } from '../cloud/liff'
@@ -160,29 +160,33 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
     }).catch(() => { /* 記録が無ければ既定 */ })
   }, [editRecord])
 
-  const total = QUESTIONS.length + 1 // 1..N=各設問, 最後=確認
-  const isReview = step === total - 1
-  const q = !isReview ? QUESTIONS[step] : null
+  // 区分（大工/施主）に応じて出す設問だけに絞る
+  const active = questionsFor(answers.category)
+  const total = active.length + 1 // 各設問 + 確認
+  const stepIdx = Math.min(step, active.length)
+  const isReview = stepIdx >= active.length
+  const q = isReview ? null : active[stepIdx]
 
   const setAnswer = (id: string, v: unknown) => setAnswers((a) => ({ ...a, [id]: v }))
 
   const next = () => {
     setMsg('')
     if (q && q.required && isEmpty(answers[q.id])) { setMsg(`「${q.label}」は必須です`); return }
-    setStep((s) => Math.min(s + 1, total - 1))
+    setStep(Math.min(stepIdx + 1, total - 1))
   }
-  const back = () => { setMsg(''); setStep((s) => Math.max(s - 1, 0)) }
+  const back = () => { setMsg(''); setStep(Math.max(stepIdx - 1, 0)) }
 
   const submit = async () => {
-    for (const qq of QUESTIONS) {
+    for (const qq of active) {
       if (qq.required && isEmpty(answers[qq.id])) { setMsg(`「${qq.label}」が未入力です`); return }
     }
     setSaving(true); setMsg('')
     try {
       const att = (answers.workers && typeof answers.workers === 'object') ? (answers.workers as Record<string, string>) : {}
       const workerNames = Object.keys(att).filter((k) => att[k]).join('・')
+      const who = answers.category === '施主' ? '施主' : (workerNames || respondent)
       const payload = {
-        projectName: FIXED_PROJECT, customerName: '', respondent: workerNames || respondent,
+        projectName: FIXED_PROJECT, customerName: '', respondent: who,
         summary: buildSummary(answers), answers,
       }
       if (editRecord) await updateSurvey(editRecord.id, payload)
@@ -210,9 +214,9 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
     <div className="survey-wizard">
       <div className="wiz-head">
         <span className="wiz-title">{editRecord ? '日報を編集' : SURVEY_TITLE}（{FIXED_PROJECT}）</span>
-        <span className="wiz-count">{step + 1} / {total}</span>
+        <span className="wiz-count">{stepIdx + 1} / {total}</span>
       </div>
-      <div className="wiz-bar"><div className="wiz-bar-in" style={{ width: `${((step + 1) / total) * 100}%` }} /></div>
+      <div className="wiz-bar"><div className="wiz-bar-in" style={{ width: `${((stepIdx + 1) / total) * 100}%` }} /></div>
 
       <div className="wiz-body">
         {q && (
@@ -226,7 +230,7 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
             <h3 className="wiz-q">内容を確認</h3>
             <div className="wiz-review">
               <div className="rev-row"><span>物件</span><b>{FIXED_PROJECT}</b></div>
-              {QUESTIONS.map((qq) => (
+              {active.map((qq) => (
                 <div key={qq.id} className="rev-row"><span>{qq.label.replace(/（.*?）/g, '')}</span><b>{showAnswer(qq, answers[qq.id])}</b></div>
               ))}
             </div>
@@ -237,7 +241,7 @@ function RecordForm({ onDone, editRecord }: { onDone: () => void; editRecord?: S
       {msg && <div className="survey-msg err">{msg}</div>}
 
       <div className="wiz-nav">
-        {step > 0 && <button className="wiz-back" onClick={back} disabled={saving}>← 戻る</button>}
+        {stepIdx > 0 && <button className="wiz-back" onClick={back} disabled={saving}>← 戻る</button>}
         {!isReview
           ? <button className="wiz-next" onClick={next}>次へ →</button>
           : <button className="wiz-next" onClick={submit} disabled={saving}>{saving ? '保存中…' : (editRecord ? 'この内容で更新する' : 'この内容で記録する')}</button>}
@@ -254,6 +258,19 @@ function QuestionField({ q, value, onChange, bare, dynamicOptions, stages }: {
   bare?: boolean; dynamicOptions?: string[]; stages?: string[]
 }) {
   const label = bare ? null : <span className="q-label">{q.label}{q.required && <em> *</em>}</span>
+
+  // 区分（大工／施主）：大きな2択ボタン
+  if (q.type === 'category') {
+    return <div className="q-field">{label}
+      <div className="cat-choices">
+        {(q.options ?? CATEGORIES).map((o) => (
+          <button key={o} type="button" className={`cat-btn ${value === o ? 'on' : ''}`} onClick={() => onChange(o)}>
+            {o === '施主' ? '🏠 施主' : '🔨 大工'}
+          </button>
+        ))}
+      </div>
+    </div>
+  }
 
   if (q.type === 'time') {
     return <label className="q-field">{label}
