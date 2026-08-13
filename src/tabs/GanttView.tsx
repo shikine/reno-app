@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listSurveys, type SurveyRecord } from '../cloud/api'
 import { overallProgress } from '../survey/questions'
+import { photoThumb, photoOpen } from '../cloud/image'
 import './GanttView.css'
 
 const DAY = 86400000
@@ -78,8 +79,25 @@ export default function GanttView({ projectName }: { projectName?: string }) {
   useEffect(() => { load() }, [projectName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const g = useMemo(() => (rows ? buildGantt(rows) : null), [rows])
+  const [selected, setSelected] = useState<SurveyRecord | null>(null)
 
   const fmt = (ms: number) => { const d = new Date(ms); return `${d.getMonth() + 1}/${d.getDate()}` }
+
+  // 各記録を日付ポイントとして配置（同日は横に振り分け）
+  const points = useMemo(() => {
+    if (!rows || !g) return []
+    const wd = rows.map((r) => ({ r, d: dateOf(r) })).filter((x): x is { r: SurveyRecord; d: number } => x.d !== null)
+    const pts = wd.map((x) => ({ r: x.r, idx: Math.round((x.d - g.minD) / DAY) }))
+    const counts = new Map<number, number>()
+    pts.forEach((p) => counts.set(p.idx, (counts.get(p.idx) || 0) + 1))
+    const seen = new Map<number, number>()
+    return pts.map((p) => {
+      const n = counts.get(p.idx) || 1
+      const k = seen.get(p.idx) || 0
+      seen.set(p.idx, k + 1)
+      return { r: p.r, idx: p.idx, n, k }
+    })
+  }, [rows, g])
 
   return (
     <div className="gantt">
@@ -107,6 +125,23 @@ export default function GanttView({ projectName }: { projectName?: string }) {
                 ))}
               </div>
             </div>
+            {/* 記録ポイント */}
+            {points.length > 0 && (
+              <div className="gantt-row gantt-marker-row">
+                <div className="gantt-label" style={{ width: LABEL_W }}>記録</div>
+                <div className="gantt-track" style={{ width: g.days * DAY_W }}>
+                  {g.todayIdx >= 0 && g.todayIdx < g.days && <div className="gantt-todayline" style={{ left: g.todayIdx * DAY_W + DAY_W / 2 }} />}
+                  {points.map((p, i) => {
+                    const owner = p.r.answers?.category === '施主'
+                    const left = p.idx * DAY_W + (DAY_W / (p.n + 1)) * (p.k + 1) - 10
+                    return (
+                      <button key={i} className={`gantt-dot ${owner ? 'owner' : 'worker'}`} style={{ left }}
+                        title={p.r.summary} onClick={() => setSelected(p.r)}>{owner ? '施' : '工'}</button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             {/* 工程バー */}
             {g.bars.map((b) => {
               const left = b.startIdx * DAY_W
@@ -127,7 +162,36 @@ export default function GanttView({ projectName }: { projectName?: string }) {
           </div>
         </div>
       )}
-      <p className="gantt-note">※ 各工程バーは「日報で最初に%が入った日」から「100%になった日／現在」まで。塗りは現在の進捗%です。</p>
+      <p className="gantt-note">※ 工程バーは「最初に%が入った日→100%/現在」。下の「記録」の●をタップすると内容が見られます。</p>
+
+      {selected && <RecordModal r={selected} onClose={() => setSelected(null)} />}
+    </div>
+  )
+}
+
+function RecordModal({ r, onClose }: { r: SurveyRecord; onClose: () => void }) {
+  const owner = r.answers?.category === '施主'
+  const photos = Array.isArray(r.answers?.photos) ? (r.answers.photos as string[]) : []
+  const d = dateOf(r)
+  const dateStr = d ? new Date(d).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }) : ''
+  return (
+    <div className="rec-overlay" onClick={onClose}>
+      <div className="rec-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="rec-modal-head">
+          <span className={`rec-cat ${owner ? 'owner' : 'worker'}`}>{owner ? '施主' : '大工'}</span>
+          <b className="rec-who">{r.respondent || '記録'}</b>
+          <button className="rec-close" onClick={onClose}>×</button>
+        </div>
+        <div className="rec-date">{dateStr}</div>
+        <div className="rec-body">{r.summary || '（内容なし）'}</div>
+        {photos.length > 0 && (
+          <div className="rec-photos">
+            {photos.map((p, i) => (
+              <a key={i} href={photoOpen(p)} target="_blank" rel="noreferrer"><img src={photoThumb(p, 400)} alt="" /></a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
